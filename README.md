@@ -57,3 +57,35 @@ Angular CLI does not come with an end-to-end testing framework by default. You c
 ## Additional Resources
 
 For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+
+# RAG Chatbot
+
+Angular 22 application with:
+
+- Auth0 Authentication
+- Role-Based Authorization
+- Angular Material
+- Bootstrap
+- Font Awesome
+- Standalone Components
+- Signals
+
+## Roles
+
+- USER
+- ADMIN
+
+## Features
+
+- Login/Logout
+- Dashboard
+- Home
+- About
+- Contact
+- Role-based navigation
+
+## Setup
+
+npm install
+
+ng serve

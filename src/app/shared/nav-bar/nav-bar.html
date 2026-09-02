@@ -1,0 +1,39 @@
+<mat-toolbar class="navbar">
+  <div class="container-fluid">
+    <div class="brand">
+      <i class="fa-solid fa-robot"></i>
+
+      <span>RAG CHATBOT</span>
+    </div>
+
+    <div class="nav-links">
+      <a routerLink="/home" routerLinkActive="active">
+        <i class="fa-solid fa-house"></i>
+        Home
+      </a>
+
+      @if (authService.hasRole('Admin')) {
+        <a routerLink="/dashboard" routerLinkActive="active">
+          <i class="fa-solid fa-chart-line"></i>
+          Dashboard
+        </a>
+      }
+
+      <a routerLink="/about" routerLinkActive="active">
+        <i class="fa-solid fa-circle-info"></i>
+        About
+      </a>
+
+      <a routerLink="/contact" routerLinkActive="active">
+        <i class="fa-solid fa-envelope"></i>
+        Contact
+      </a>
+
+      <button mat-raised-button color="primary" (click)="logout()">
+        <i class="fa-solid fa-right-from-bracket"></i>
+
+        Logout
+      </button>
+    </div>
+  </div>
+</mat-toolbar>
