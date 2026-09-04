@@ -19,11 +19,15 @@ export class AuthService {
   }
 
   logout(): void {
+    sessionStorage.clear();
+    localStorage.clear();
+    
     this.auth0.logout({
       logoutParams: {
         returnTo: window.location.origin,
       },
     });
+
   }
 
   getAccessToken() {
@@ -34,7 +38,7 @@ export class AuthService {
     const currentUser = this.user();
 
     const roles = (currentUser?.['https://angular-app.com/roles'] as string[]) ?? [];
-    console.log('Current User Roles:', roles);
+    //console.log('Current User Roles:', roles);
     return roles.includes(role);
   }
 
@@ -42,7 +46,7 @@ export class AuthService {
     const currentUser = this.user();
 
     const userRoles = (currentUser?.['https://angular-app.com/roles'] as string[]) ?? [];
-    console.log('Current User Roles:', userRoles);
+    //console.log('Current User Roles:', userRoles);
     return roles.some((role) => userRoles.includes(role));
   }
 }

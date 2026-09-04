@@ -1,9 +1,15 @@
-@if (showNavbar) {
-  <app-navbar></app-navbar>
-}
+@if (authService.isLoading()) {
+  <div class="loading-screen">Loading...</div>
+} @else {
+  @if (showNavbar) {
+    <app-navbar />
+  }
 
-<router-outlet></router-outlet>
+  <main class="page-content">
+    <router-outlet />
+  </main>
 
-@if (showNavbar) {
-  <app-footer></app-footer>
+  @if (showNavbar) {
+    <app-footer />
+  }
 }

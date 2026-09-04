@@ -1,5 +1,5 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { provideRouter,withEnabledBlockingInitialNavigation } from '@angular/router';
 
 import { provideAuth0 } from '@auth0/auth0-angular';
 
@@ -10,7 +10,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
 
-    provideRouter(routes),
+    provideRouter(routes, withEnabledBlockingInitialNavigation()),
 
     provideAuth0({
       domain: environment.auth0.domain,

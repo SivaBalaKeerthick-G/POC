@@ -2,7 +2,7 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
-export const authGuard: CanActivateFn = async () => {
+export const adminGuard: CanActivateFn = async () => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
@@ -14,6 +14,11 @@ export const authGuard: CanActivateFn = async () => {
   // Not logged in
   if (!authService.isAuthenticated()) {
     return router.createUrlTree(['/login']);
+  }
+
+  // Logged in but not admin
+  if (!authService.hasRole('Admin')) {
+    return router.createUrlTree(['/unauthorized']);
   }
 
   return true;

@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
-import { authGuardFn } from '@auth0/auth0-angular';
 import { authGuard } from './core/guards/auth.guard';
+import { adminGuard } from './core/guards/admin.guard';
 
 export const routes: Routes = [
   {
@@ -17,25 +17,25 @@ export const routes: Routes = [
   {
     path: 'home',
     loadComponent: () => import('./components/home/home').then((m) => m.Home),
-    canActivate: [authGuardFn],//buit-in guard by Auth0 to check for authentication
+    canActivate: [authGuard],
   },
   
   {
     path: 'dashboard',
     loadComponent: () => import('./components/dashboard/dashboard').then((m) => m.Dashboard),
-    canActivate: [authGuard], //custom guard to check for Admin role
+    canActivate: [adminGuard],
   },
 
   {
     path: 'about',
     loadComponent: () => import('./components/about/about').then((m) => m.About),
-    canActivate: [authGuardFn],
+    canActivate: [authGuard],
   },
 
   {
     path: 'contact',
     loadComponent: () => import('./components/contact/contact').then((m) => m.Contact),
-    canActivate: [authGuardFn],
+    canActivate: [authGuard],
   },
 
   {
