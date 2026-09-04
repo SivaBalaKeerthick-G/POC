@@ -1,73 +1,76 @@
-.footer {
-  background: #07142f;
-  color: #ffffff;
-  padding: 1rem 2rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+:host {
+  margin-top: auto;
+  width: 100%;
 }
 
-.footer-content {
-  min-height: 70px;
+.footer {
+  background: rgba(11, 15, 23, 0.95);
+  backdrop-filter: blur(12px);
+  color: #64748b;
+  padding: 0.85rem 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.8rem;
+}
 
+.container-fluid {
   display: flex;
   align-items: center;
   justify-content: space-between;
-
-  gap: 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.footer-section {
+.footer-left, .footer-right {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-
-  font-size: 0.95rem;
+  gap: 1.25rem;
 }
 
-.footer-title {
-  font-size: 1.1rem;
-  font-weight: 600;
+.footer-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #f8fafc; // Changed to crisp white
+  font-weight: 500;
+  font-size: 0.8rem;
 }
 
 .footer-icon {
-  color: #60a5fa;
-}
-
-.social-links {
-  gap: 1rem;
-}
-
-.social-links a {
-  color: white;
-  font-size: 1.3rem;
-
-  transition: all 0.3s ease;
-}
-
-.social-links a:hover {
-  color: #60a5fa;
-  transform: translateY(-2px);
-}
-
-.footer-bottom {
-  margin-top: 0.5rem;
-
-  text-align: center;
-
-  color: #94a3b8;
+  color: #cbd5e1; // Changed from blue to subtle light slate/white
   font-size: 0.85rem;
 }
 
-@media (max-width: 992px) {
+.divider {
+  color: rgba(255, 255, 255, 0.15);
+}
 
-  .footer-content {
-    flex-wrap: wrap;
-    justify-content: center;
-    text-align: center;
+.copyright {
+  color: #64748b;
+  font-size: 0.775rem;
+}
 
-    gap: 1rem;
+.social-links {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+
+  a {
+    color: #94a3b8; // Clean neutral link tone
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: #ffffff; // Bright white on hover
+      transform: translateY(-1px);
+    }
   }
+}
 
-  .footer-section {
-    justify-content: center;
+@media (max-width: 768px) {
+  .container-fluid {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
   }
 }

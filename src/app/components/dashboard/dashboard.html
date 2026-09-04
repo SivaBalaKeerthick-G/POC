@@ -1,1 +1,137 @@
-<p>dashboard works!</p>
+<div class="dashboard-container">
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <main class="dashboard-content">
+    <!-- Header Section -->
+    <section class="dashboard-header">
+      <div>
+        <div class="admin-badge">
+          <i class="fa-solid fa-shield-halved"></i>
+          Admin Privilege Active
+        </div>
+        <h1>System & Knowledge Base Management</h1>
+        <p>Manage enterprise document ingestion, vector indexes, and system query performance.</p>
+      </div>
+
+      <button class="action-btn primary-btn" (click)="openUploadModal()">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+        Upload New Document
+      </button>
+    </section>
+
+    <!-- Top Metrics Cards -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon blue">
+          <i class="fa-solid fa-folder-open"></i>
+        </div>
+        <div class="stat-details">
+          <span class="stat-title">Indexed Documents</span>
+          <span class="stat-value">1,248</span>
+          <span class="stat-sub positive"><i class="fa-solid fa-arrow-up"></i> +12 this week</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon purple">
+          <i class="fa-solid fa-cubes"></i>
+        </div>
+        <div class="stat-details">
+          <span class="stat-title">Vector Chunks</span>
+          <span class="stat-value">48,290</span>
+          <span class="stat-sub">Pinecone DB</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon green">
+          <i class="fa-solid fa-magnifying-glass-chart"></i>
+        </div>
+        <div class="stat-details">
+          <span class="stat-title">Monthly Queries</span>
+          <span class="stat-value">14,210</span>
+          <span class="stat-sub positive"><i class="fa-solid fa-arrow-up"></i> 98.4% Grounded</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon amber">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+        <div class="stat-details">
+          <span class="stat-title">Avg. RAG Latency</span>
+          <span class="stat-value">142 ms</span>
+          <span class="stat-sub">Optimal speed</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Document Management Table Panel -->
+    <section class="table-card">
+      <div class="table-header">
+        <div>
+          <h2>Knowledge Base Files</h2>
+          <p>View, edit metadata, re-index vector chunks, or remove files from search index.</p>
+        </div>
+
+        <div class="search-filter">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" placeholder="Filter documents..." [(ngModel)]="filterQuery" />
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th>Document Name</th>
+              <th>Category</th>
+              <th>Chunks</th>
+              <th>Status</th>
+              <th>Last Updated</th>
+              <th class="text-right">Admin Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (doc of documents; track doc.id) {
+              <tr>
+                <td>
+                  <div class="doc-name-cell">
+                    <i class="fa-solid fa-file-pdf pdf-icon"></i>
+                    <div>
+                      <span class="doc-title">{{ doc.name }}</span>
+                      <span class="doc-size">{{ doc.size }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="category-tag">{{ doc.category }}</span></td>
+                <td>{{ doc.chunksCount }} chunks</td>
+                <td>
+                  <span class="status-pill" [class.ready]="doc.status === 'Indexed'" [class.indexing]="doc.status === 'Processing'">
+                    <span class="status-dot"></span>
+                    {{ doc.status }}
+                  </span>
+                </td>
+                <td>{{ doc.lastUpdated }}</td>
+                <td class="text-right">
+                  <div class="action-buttons">
+                    <button class="icon-btn edit" title="Edit Metadata" (click)="editDoc(doc)">
+                      <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="icon-btn reindex" title="Re-index Chunks" (click)="reindexDoc(doc)">
+                      <i class="fa-solid fa-rotate"></i>
+                    </button>
+                    <button class="icon-btn delete" title="Delete File" (click)="deleteDoc(doc.id)">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
