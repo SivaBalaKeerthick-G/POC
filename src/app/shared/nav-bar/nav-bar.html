@@ -1,4 +1,4 @@
-<mat-toolbar class="navbar">
+<!-- <mat-toolbar class="navbar">
   <div class="container-fluid">
     <div class="brand">
       <i class="fa-solid fa-robot"></i>
@@ -33,6 +33,54 @@
         <i class="fa-solid fa-right-from-bracket"></i>
 
         Logout
+      </button>
+    </div>
+  </div>
+</mat-toolbar> -->
+
+
+
+
+
+<mat-toolbar class="navbar">
+  <div class="container-fluid">
+    <div class="brand">
+      <div class="brand-icon">
+        <i class="fa-solid fa-file-contract"></i>
+      </div>
+      <span>COGNIDOC</span>
+    </div>
+
+    <div class="nav-links">
+      <a routerLink="/home" routerLinkActive="active">
+        <i class="fa-solid fa-house"></i>
+        Home
+      </a>
+
+      @if (authService.hasRole('Admin')) {
+        <a routerLink="/dashboard" routerLinkActive="active">
+          <i class="fa-solid fa-chart-line"></i>
+          Dashboard
+        </a>
+      }
+
+      <a routerLink="/about" routerLinkActive="active">
+        <i class="fa-solid fa-circle-info"></i>
+        About
+      </a>
+
+      <a routerLink="/contact" routerLinkActive="active">
+        <i class="fa-solid fa-envelope"></i>
+        Contact
+      </a>
+
+     <button 
+        mat-icon-button 
+        class="logout-icon-btn" 
+        (click)="logout()" 
+        title="Logout" 
+        aria-label="Logout">
+        <i class="fa-solid fa-right-from-bracket"></i>
       </button>
     </div>
   </div>

@@ -1,7 +1,93 @@
+// .navbar {
+//   background: #0f172a;
+//   color: white;
+//   padding: 0 1rem;
+// }
+
+// .container-fluid {
+//   display: flex;
+//   justify-content: space-between;
+//   align-items: center;
+//   width: 100%;
+// }
+
+// .brand {
+//   display: flex;
+//   align-items: center;
+//   gap: 10px;
+
+//   font-size: 1.2rem;
+//   font-weight: 600;
+
+//   i {
+//     color: #60a5fa;
+//     font-size: 1.5rem;
+//   }
+// }
+
+// .nav-links {
+//   display: flex;
+//   align-items: center;
+//   gap: 1rem;
+// }
+
+// .nav-links a {
+//   color: white;
+//   text-decoration: none;
+
+//   display: flex;
+//   align-items: center;
+//   gap: 6px;
+
+//   padding: 8px 12px;
+
+//   border-radius: 8px;
+
+//   transition: all 0.3s ease;
+// }
+
+// .nav-links a:hover {
+//   background: rgba(255, 255, 255, 0.1);
+// }
+
+// .active {
+//   background: #2563eb;
+// }
+
+// button {
+//   margin-left: 10px;
+// }
+
+// @media (max-width: 768px) {
+
+//   .container-fluid {
+//     flex-direction: column;
+//     gap: 10px;
+//     padding: 10px 0;
+//   }
+
+//   .nav-links {
+//     flex-wrap: wrap;
+//     justify-content: center;
+//   }
+// }
+
+
+
 .navbar {
-  background: #0f172a;
-  color: white;
-  padding: 0 1rem;
+  background: rgba(11, 15, 23, 0.8) !important;
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc;
+  padding: 0 2rem;
+  height: 60px !important;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  
+  // Ambient top border highlight
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4),
+              0 1px 0 rgba(59, 130, 246, 0.2) inset !important;
 }
 
 .container-fluid {
@@ -9,65 +95,95 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #ffffff;
 
-  font-size: 1.2rem;
-  font-weight: 600;
-
-  i {
+  .brand-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(99, 102, 241, 0.15) 100%);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: #60a5fa;
-    font-size: 1.5rem;
+
+    i {
+      font-size: 0.95rem;
+    }
   }
 }
 
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
+  gap: 0.5rem;
 
-.nav-links a {
-  color: white;
-  text-decoration: none;
+  a {
+    color: #94a3b8;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
 
-  display: flex;
-  align-items: center;
-  gap: 6px;
+    i {
+      font-size: 0.85rem;
+      opacity: 0.8;
+    }
 
-  padding: 8px 12px;
-
-  border-radius: 8px;
-
-  transition: all 0.3s ease;
-}
-
-.nav-links a:hover {
-  background: rgba(255, 255, 255, 0.1);
+    &:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+  }
 }
 
 .active {
-  background: #2563eb;
-}
+  background: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
+  border: 1px solid rgba(59, 130, 246, 0.25);
 
-button {
-  margin-left: 10px;
-}
-
-@media (max-width: 768px) {
-
-  .container-fluid {
-    flex-direction: column;
-    gap: 10px;
-    padding: 10px 0;
+  i {
+    opacity: 1 !important;
+    color: #60a5fa;
   }
+}
 
-  .nav-links {
-    flex-wrap: wrap;
-    justify-content: center;
+.logout-icon-btn {
+  margin-left: 10px;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #94a3b8 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease !important;
+
+  &:hover {
+    background: rgba(239, 68, 68, 0.15) !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    color: #f87171 !important;
   }
 }
