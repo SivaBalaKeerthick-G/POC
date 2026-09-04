@@ -9,22 +9,14 @@ import { AuthService } from '../../core/services/auth.service';
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [
-    RouterLink,
-    RouterLinkActive,
-    MatToolbarModule,
-    MatButtonModule,
-    MatIconModule
-  ],
+  imports: [RouterLink, RouterLinkActive, MatToolbarModule, MatButtonModule, MatIconModule],
   templateUrl: './nav-bar.html',
-  styleUrl: './nav-bar.scss'
+  styleUrl: './nav-bar.scss',
 })
 export class Navbar {
-
   protected authService = inject(AuthService);
 
   logout(): void {
     this.authService.logout();
   }
-
 }
