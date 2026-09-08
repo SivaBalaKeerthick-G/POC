@@ -1,22 +1,64 @@
-import { Component, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Component, HostListener } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, MatToolbarModule, MatButtonModule, MatIconModule],
+  imports: [CommonModule, RouterModule, MatToolbarModule],
   templateUrl: './nav-bar.html',
-  styleUrl: './nav-bar.scss',
+  styleUrl: './nav-bar.scss'
 })
 export class Navbar {
-  protected authService = inject(AuthService);
+  isProfileCardOpen = false;
+  isLogoutConfirmOpen = false;
+  isResetSentModalOpen = false; // Flag controls the confirmation card
 
-  logout(): void {
+  constructor(public authService: AuthService) {}
+
+  toggleProfileCard(event: Event): void {
+    event.stopPropagation();
+    this.isProfileCardOpen = !this.isProfileCardOpen;
+  }
+
+  onResetPassword(): void {
+    this.isProfileCardOpen = false;
+    const currentUser = this.authService.user();
+    const userEmail = currentUser?.email;
+
+    if (!userEmail) {
+      alert('Unable to find user email address.');
+      return;
+    }
+
+    // 1. SHOW THE CARD IMMEDIATELY
+    this.isResetSentModalOpen = true;
+
+    // 2. TRIGGER AUTH0 IN BACKGROUND
+    this.authService.sendPasswordResetEmail(userEmail).subscribe({
+      next: () => console.log('Reset email sent via Auth0'),
+      error: (err) => console.log('Auth0 API notice:', err)
+    });
+  }
+
+  openLogoutConfirmation(): void {
+    this.isProfileCardOpen = false;
+    this.isLogoutConfirmOpen = true;
+  }
+
+  cancelLogout(): void {
+    this.isLogoutConfirmOpen = false;
+  }
+
+  confirmLogout(): void {
+    this.isLogoutConfirmOpen = false;
     this.authService.logout();
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    this.isProfileCardOpen = false;
   }
 }
