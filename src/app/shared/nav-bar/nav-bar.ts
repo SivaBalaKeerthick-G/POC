@@ -14,6 +14,7 @@ import { AuthService } from '../../core/services/auth.service';
 export class Navbar {
   isProfileCardOpen = false;
   isLogoutConfirmOpen = false;
+  isResetConfirmOpen = false;
   isResetSentModalOpen = false; // Flag controls the confirmation card
 
   constructor(public authService: AuthService) {}
@@ -25,6 +26,15 @@ export class Navbar {
 
   onResetPassword(): void {
     this.isProfileCardOpen = false;
+    this.isResetConfirmOpen = true;
+  }
+
+  cancelResetPassword(): void {
+    this.isResetConfirmOpen = false;
+  }
+
+  confirmResetPassword(): void {
+    this.isResetConfirmOpen = false;
     const currentUser = this.authService.user();
     const userEmail = currentUser?.email;
 
@@ -33,10 +43,8 @@ export class Navbar {
       return;
     }
 
-    // 1. SHOW THE CARD IMMEDIATELY
     this.isResetSentModalOpen = true;
 
-    // 2. TRIGGER AUTH0 IN BACKGROUND
     this.authService.sendPasswordResetEmail(userEmail).subscribe({
       next: () => console.log('Reset email sent via Auth0'),
       error: (err) => console.log('Auth0 API notice:', err)

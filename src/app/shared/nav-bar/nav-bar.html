@@ -84,6 +84,24 @@
   </div>
 </mat-toolbar>
 
+<!-- Reset Password Confirmation Modal -->
+@if (isResetConfirmOpen) {
+  <div class="modal-backdrop" (click)="cancelResetPassword()">
+    <div class="confirm-dialog-card" (click)="$event.stopPropagation()">
+      <div class="dialog-icon-wrapper">
+        <i class="fa-solid fa-key"></i>
+      </div>
+      <h3>Reset Your Password?</h3>
+      <p>We'll send a password reset link to your email address.</p>
+
+      <div class="dialog-actions">
+        <button class="btn-secondary" (click)="cancelResetPassword()">Cancel</button>
+        <button class="btn-primary" (click)="confirmResetPassword()">Send Reset Link</button>
+      </div>
+    </div>
+  </div>
+}
+
 <!-- Logout Confirmation Modal -->
 @if (isLogoutConfirmOpen) {
   <div class="modal-backdrop" (click)="cancelLogout()">
