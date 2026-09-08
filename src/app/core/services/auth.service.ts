@@ -59,6 +59,7 @@ import { AuthService as Auth0Service } from '@auth0/auth0-angular';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root',
@@ -67,9 +68,8 @@ export class AuthService {
   private auth0 = inject(Auth0Service);
   private http = inject(HttpClient);
 
-  // Replace with your actual Auth0 domain & client ID
-  private auth0Domain = 'YOUR_AUTH0_DOMAIN.auth0.com'; 
-  private clientId = 'YOUR_AUTH0_CLIENT_ID';
+  private auth0Domain = environment.auth0.domain;
+  private clientId = environment.auth0.clientId;
 
   readonly isAuthenticated = toSignal(this.auth0.isAuthenticated$, { initialValue: false });
   readonly user = toSignal(this.auth0.user$, { initialValue: null });
