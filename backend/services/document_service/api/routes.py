@@ -94,7 +94,7 @@ async def upload_document(
         original_filename=file.filename,
         file_size=_fmt_size(size_bytes),
         category=category,
-        status="Indexed",
+        status="Processing",
         chunks_count=0,
     )
     db.add(doc)
@@ -145,6 +145,7 @@ async def upload_document(
         ])
 
         # ── Phase 6: Mark document as Indexed ─────────────────────────────────
+        doc.status = "Indexed"
         doc.chunks_count = len(chunks)
         doc.updated_at = datetime.utcnow()
         await db.flush()

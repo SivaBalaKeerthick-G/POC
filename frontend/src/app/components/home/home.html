@@ -14,7 +14,7 @@
     </section>
 
     <!-- Quick Prompts (Only shown before searching) -->
-    @if (messages.length === 0) {
+    @if (messages().length === 0) {
       <div class="quick-chips">
         <button class="chip" (click)="selectPrompt('What is our internal data retention policy?')">
           <i class="fa-solid fa-magnifying-glass"></i>
@@ -33,7 +33,7 @@
 
     <!-- Chat / Response Stream -->
     <div class="chat-stream">
-      @for (msg of messages; track $index) {
+      @for (msg of messages(); track $index) {
         @if (msg.role === 'user') {
           <div class="message user-message">
             <div class="message-bubble">{{ msg.content }}</div>
@@ -74,7 +74,7 @@
       }
 
       <!-- Loading State -->
-      @if (isLoading) {
+      @if (isLoading()) {
         <div class="message ai-card loading-card">
           <div class="ai-card-header">
             <div class="ai-badge spin">
@@ -86,13 +86,13 @@
       }
 
       <!-- Error State -->
-      @if (errorMessage) {
+      @if (errorMessage(); as error) {
         <div class="message ai-card error-card">
           <div class="ai-card-header">
             <div class="ai-badge error">
               <i class="fa-solid fa-circle-exclamation"></i>
             </div>
-            <span class="ai-name">{{ errorMessage }}</span>
+            <span class="ai-name">{{ error }}</span>
           </div>
         </div>
       }
@@ -100,14 +100,15 @@
 
     <!-- Sticky Prompt Bar -->
     <div class="search-box-container">
-      <input 
-        type="text" 
-        placeholder="Ask CogniDoc about enterprise policies, API docs, or specs..." 
-        [(ngModel)]="searchQuery" 
-        (keyup.enter)="onSearch()" 
-        [disabled]="isLoading" />
-      
-      <button class="send-btn" (click)="onSearch()" [disabled]="!searchQuery.trim() || isLoading">
+      <input
+        type="text"
+        placeholder="Ask CogniDoc about enterprise policies, API docs, or specs..."
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+        (keyup.enter)="onSearch()"
+        [disabled]="isLoading()" />
+
+      <button class="send-btn" (click)="onSearch()" [disabled]="!searchQuery().trim() || isLoading()">
         <i class="fa-solid fa-paper-plane"></i>
       </button>
     </div>

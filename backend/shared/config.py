@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     # ── CORS ─────────────────────────────────────────────
     ALLOWED_ORIGINS: str = "http://localhost:4200"
 
+    # ── TLS ──────────────────────────────────────────────
+    # Set false only behind an HTTPS-inspecting corporate proxy. See
+    # shared/ssl_config.py.
+    SSL_VERIFY: bool = True
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]

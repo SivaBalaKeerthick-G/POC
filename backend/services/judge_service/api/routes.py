@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.config import settings
 from shared.db.postgres import QueryLog, get_db
 from shared.models.chat import JudgeEvalRequest, JudgeScore
+from shared.ssl_config import groq_client_args
 
 router = APIRouter()
 
@@ -48,6 +49,7 @@ def _get_judge_chain():
         api_key=settings.GROQ_API_KEY,
         temperature=0.0,
         max_tokens=256,
+        **groq_client_args(),
     )
     return _JUDGE_PROMPT | llm | _parser
 

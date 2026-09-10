@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DocumentFile, VectorChunk } from '../../models/document.model';
@@ -12,33 +12,33 @@ import { DocumentService } from '../../core/services/document.service';
   styleUrl: './dashboard.scss',
 })
 export class Dashboard implements OnInit {
-  filterQuery = '';
-  selectedDocForDrawer: DocumentFile | null = null;
-  drawerChunks: VectorChunk[] = [];
-  isDrawerLoading = false;
+  filterQuery = signal('');
+  selectedDocForDrawer = signal<DocumentFile | null>(null);
+  drawerChunks = signal<VectorChunk[]>([]);
+  isDrawerLoading = signal(false);
 
   // Notification Toast State
-  notificationMessage: string | null = null;
+  notificationMessage = signal<string | null>(null);
 
   // Inline Upload Modal State
-  isUploadModalOpen = false;
-  isUploading = false;
-  selectedFile: File | null = null;
+  isUploadModalOpen = signal(false);
+  isUploading = signal(false);
+  selectedFile = signal<File | null>(null);
   selectedCategory = 'Security & Policy';
-  isDragging = false;
+  isDragging = signal(false);
 
   // Delete Confirm Modal State
-  isDeleteConfirmOpen = false;
-  docPendingDelete: DocumentFile | null = null;
+  isDeleteConfirmOpen = signal(false);
+  docPendingDelete = signal<DocumentFile | null>(null);
 
   // Dashboard metrics (loaded from API)
-  vectorChunks = 0;
-  monthlyQueries = 0;
-  groundingRate = '—';
-  avgLatencyMs = 0;
+  vectorChunks = signal(0);
+  monthlyQueries = signal(0);
+  groundingRate = signal('—');
+  avgLatencyMs = signal(0);
 
-  documents: DocumentFile[] = [];
-  isLoadingDocs = true;
+  documents = signal<DocumentFile[]>([]);
+  isLoadingDocs = signal(true);
 
   private documentService = inject(DocumentService);
 
@@ -47,29 +47,29 @@ export class Dashboard implements OnInit {
     this.loadMetrics();
   }
 
-  /** Computed filtered documents list used in the template */
-  get filteredDocuments(): DocumentFile[] {
-    const q = this.filterQuery.trim().toLowerCase();
-    if (!q) return this.documents;
-    return this.documents.filter(
+  readonly filteredDocuments = computed(() => {
+    const q = this.filterQuery().trim().toLowerCase();
+    const docs = this.documents();
+    if (!q) return docs;
+    return docs.filter(
       (d) =>
         d.name.toLowerCase().includes(q) ||
         d.category.toLowerCase().includes(q) ||
         d.status.toLowerCase().includes(q)
     );
-  }
+  });
 
   private loadDocuments(): void {
-    this.isLoadingDocs = true;
+    this.isLoadingDocs.set(true);
     this.documentService.getDocuments().subscribe({
       next: (docs) => {
-        this.documents = docs;
-        this.isLoadingDocs = false;
+        this.documents.set(docs);
+        this.isLoadingDocs.set(false);
       },
       error: (err) => {
         console.error('Failed to load documents:', err);
-        this.showNotification('Error: Could not load documents from server.');
-        this.isLoadingDocs = false;
+        this.showNotification(`Could not load documents: ${err.message ?? 'unknown error'}`);
+        this.isLoadingDocs.set(false);
       },
     });
   }
@@ -77,10 +77,10 @@ export class Dashboard implements OnInit {
   private loadMetrics(): void {
     this.documentService.getMetrics().subscribe({
       next: (m) => {
-        this.vectorChunks = m.vectorChunks;
-        this.monthlyQueries = m.monthlyQueries;
-        this.groundingRate = m.groundingRate;
-        this.avgLatencyMs = m.avgLatencyMs;
+        this.vectorChunks.set(m.vectorChunks);
+        this.monthlyQueries.set(m.monthlyQueries);
+        this.groundingRate.set(m.groundingRate);
+        this.avgLatencyMs.set(m.avgLatencyMs);
       },
       error: (err) => console.error('Failed to load metrics:', err),
     });
@@ -88,37 +88,37 @@ export class Dashboard implements OnInit {
 
   // Toast Notification Helper (auto-dismiss after 2 seconds)
   showNotification(msg: string): void {
-    this.notificationMessage = msg;
+    this.notificationMessage.set(msg);
     setTimeout(() => {
-      this.notificationMessage = null;
+      this.notificationMessage.set(null);
     }, 2000);
   }
 
   // Upload Modal Handlers
   openUploadModal(): void {
-    this.selectedFile = null;
-    this.isUploadModalOpen = true;
+    this.selectedFile.set(null);
+    this.isUploadModalOpen.set(true);
   }
 
   closeUploadModal(): void {
-    if (this.isUploading) return;
-    this.isUploadModalOpen = false;
+    if (this.isUploading()) return;
+    this.isUploadModalOpen.set(false);
   }
 
   // Drag & Drop Handlers
   onDragOver(event: DragEvent): void {
     event.preventDefault();
-    this.isDragging = true;
+    this.isDragging.set(true);
   }
 
   onDragLeave(event: DragEvent): void {
     event.preventDefault();
-    this.isDragging = false;
+    this.isDragging.set(false);
   }
 
   onDrop(event: DragEvent): void {
     event.preventDefault();
-    this.isDragging = false;
+    this.isDragging.set(false);
     if (event.dataTransfer?.files.length) {
       this.handleFile(event.dataTransfer.files[0]);
     }
@@ -146,12 +146,12 @@ export class Dashboard implements OnInit {
       this.showNotification('Error: Please upload a PDF, DOCX, TXT, XLSX, or XLS file.');
       return;
     }
-    this.selectedFile = file;
+    this.selectedFile.set(file);
   }
 
   removeFile(event: Event): void {
     event.stopPropagation();
-    this.selectedFile = null;
+    this.selectedFile.set(null);
   }
 
   formatFileSize(bytes: number): string {
@@ -191,46 +191,47 @@ export class Dashboard implements OnInit {
   }
 
   startUpload(): void {
-    if (!this.selectedFile || this.isUploading) return;
-    this.isUploading = true;
+    const file = this.selectedFile();
+    if (!file || this.isUploading()) return;
+    this.isUploading.set(true);
 
-    this.documentService.uploadDocument(this.selectedFile, this.selectedCategory).subscribe({
+    this.documentService.uploadDocument(file, this.selectedCategory).subscribe({
       next: (newDoc) => {
-        this.documents.unshift(newDoc);
-        this.isUploadModalOpen = false;
-        this.isUploading = false;
+        this.documents.update((docs) => [newDoc, ...docs]);
+        this.isUploadModalOpen.set(false);
+        this.isUploading.set(false);
         this.showNotification(`Document "${newDoc.name}" uploaded successfully!`);
       },
       error: (err) => {
         console.error('Upload failed:', err);
-        this.isUploading = false;
-        this.showNotification('Error: Document upload failed. Please try again.');
+        this.isUploading.set(false);
+        this.showNotification(`Upload failed: ${err.message ?? 'unknown error'}`);
       },
     });
   }
 
   // Chunk Drawer Handlers
   openChunkDrawer(doc: DocumentFile): void {
-    this.selectedDocForDrawer = doc;
-    this.drawerChunks = [];
-    this.isDrawerLoading = true;
+    this.selectedDocForDrawer.set(doc);
+    this.drawerChunks.set([]);
+    this.isDrawerLoading.set(true);
 
     this.documentService.getChunks(doc.id).subscribe({
       next: (chunks) => {
-        this.drawerChunks = chunks;
-        this.isDrawerLoading = false;
+        this.drawerChunks.set(chunks);
+        this.isDrawerLoading.set(false);
       },
       error: (err) => {
         console.error('Failed to load chunks:', err);
-        this.isDrawerLoading = false;
+        this.isDrawerLoading.set(false);
         this.showNotification('Error: Could not load vector chunks.');
       },
     });
   }
 
   closeChunkDrawer(): void {
-    this.selectedDocForDrawer = null;
-    this.drawerChunks = [];
+    this.selectedDocForDrawer.set(null);
+    this.drawerChunks.set([]);
   }
 
   copyChunk(text: string): void {
@@ -255,25 +256,25 @@ export class Dashboard implements OnInit {
 
   // Delete flow using custom modal (replaces window.confirm)
   requestDelete(doc: DocumentFile): void {
-    this.docPendingDelete = doc;
-    this.isDeleteConfirmOpen = true;
+    this.docPendingDelete.set(doc);
+    this.isDeleteConfirmOpen.set(true);
   }
 
   cancelDelete(): void {
-    this.isDeleteConfirmOpen = false;
-    this.docPendingDelete = null;
+    this.isDeleteConfirmOpen.set(false);
+    this.docPendingDelete.set(null);
   }
 
   confirmDelete(): void {
-    const doc = this.docPendingDelete;
+    const doc = this.docPendingDelete();
     if (!doc) return;
 
-    this.isDeleteConfirmOpen = false;
-    this.docPendingDelete = null;
+    this.isDeleteConfirmOpen.set(false);
+    this.docPendingDelete.set(null);
 
     this.documentService.deleteDocument(doc.id).subscribe({
       next: () => {
-        this.documents = this.documents.filter((d) => d.id !== doc.id);
+        this.documents.update((docs) => docs.filter((d) => d.id !== doc.id));
         this.showNotification(`Removed "${doc.name}" from knowledge base.`);
       },
       error: (err) => {

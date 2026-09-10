@@ -12,6 +12,8 @@ from pathlib import Path
 BACKEND_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BACKEND_DIR))
 
+from sqlalchemy import text
+
 from shared.config import settings
 from shared.db.postgres import engine, create_tables
 from shared.db.chroma import get_chroma_client
@@ -36,7 +38,7 @@ async def verify_database():
     print(f"\n{Color.BOLD}Testing PostgreSQL Connection...{Color.RESET}")
     try:
         async with engine.begin() as conn:
-            result = await conn.execute("SELECT version();")
+            result = await conn.execute(text("SELECT version();"))
             version = result.scalar()
             print_status("PostgreSQL connected", True)
             print(f"     Version: {version.split(',')[0]}")

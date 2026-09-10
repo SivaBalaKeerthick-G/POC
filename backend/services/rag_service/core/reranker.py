@@ -9,6 +9,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 
 from shared.config import settings
+from shared.ssl_config import google_client_args
 
 
 class PassageScore(BaseModel):
@@ -35,6 +36,7 @@ def _get_reranker_chain():
         google_api_key=settings.GEMINI_API_KEY,
         temperature=0.0,
         max_output_tokens=64,
+        client_args=google_client_args(),
     )
     return _prompt | model | _parser
 

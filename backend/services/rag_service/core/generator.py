@@ -7,6 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from shared.config import settings
+from shared.ssl_config import google_client_args
 
 _SYSTEM_PROMPT = """\
 You are CogniDoc, an enterprise knowledge assistant.
@@ -38,6 +39,7 @@ def _get_generator_chain():
         google_api_key=settings.GEMINI_API_KEY,
         temperature=0.2,
         max_output_tokens=1024,
+        client_args=google_client_args(),
     )
     return _prompt | model | StrOutputParser()
 
