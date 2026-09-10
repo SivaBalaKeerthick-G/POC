@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ChatMessage } from '../../models/chat.model';
+import { ChatMessage, SourceChunk } from '../../models/chat.model';
 import { RagService } from '../../core/services/rag.service';
 
 @Component({
@@ -41,7 +41,7 @@ export class Home {
           {
             role: 'ai',
             content: response.content,
-            sources: response.sources,
+            sources: this.uniqueSources(response.sources),
           },
         ]);
         this.isLoading.set(false);
@@ -51,6 +51,18 @@ export class Home {
         this.errorMessage.set('Failed to get a response. Please try again.');
         this.isLoading.set(false);
       },
+    });
+  }
+
+  /** One entry per source document — chunk positions and scores are not surfaced. */
+  private uniqueSources(sources?: SourceChunk[]): SourceChunk[] {
+    if (!sources) return [];
+
+    const seen = new Set<string>();
+    return sources.filter((s) => {
+      if (seen.has(s.fileName)) return false;
+      seen.add(s.fileName);
+      return true;
     });
   }
 }

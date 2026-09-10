@@ -50,7 +50,7 @@
             <div class="ai-card-body">
               <p>{{ msg.content }}</p>
 
-              <!-- Source Citations Drawer -->
+              <!-- Source Citations Drawer — hidden for now, sources are not shown.
               @if (msg.sources && msg.sources.length > 0) {
                 <div class="sources-container">
                   <span class="sources-label">
@@ -58,16 +58,16 @@
                     Retrieved Knowledge Sources:
                   </span>
                   @for (source of msg.sources; track source.id) {
-                    <div class="source-item">
-                      <div class="source-info">
+                    <div class="source-info">
                         <i class="fa-solid fa-file-pdf"></i>
-                        <span>{{ source.fileName }} ({{ source.chunkLocation }})</span>
-                      </div>
-                      <span class="match-score">{{ source.score }} Match</span>
+                        <span>{{ source.fileName }}</span>
                     </div>
                   }
                 </div>
               }
+              -->
+
+
             </div>
           </div>
         }

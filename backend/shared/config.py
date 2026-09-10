@@ -26,8 +26,8 @@ class Settings(BaseSettings):
 
     # ── Gemini ───────────────────────────────────────────
     GEMINI_API_KEY: str = ""
-    GEMINI_GENERATION_MODEL: str = "gemini-2.5-flash-lite-preview-06-17"
-    GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
+    GEMINI_GENERATION_MODEL: str = "gemini-3.5-flash-lite"
+    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-2"
 
     # ── Groq ─────────────────────────────────────────────
     GROQ_API_KEY: str = ""
