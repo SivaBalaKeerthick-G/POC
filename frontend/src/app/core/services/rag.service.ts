@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, timeout, catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ChatMessage } from '../../models/chat.model';
 
@@ -14,14 +14,25 @@ export interface QueryRequest {
 export class RagService {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
+  private requestTimeout = 120000;
 
-  /**
-   * Sends a user query to the RAG backend and returns an AI ChatMessage
-   * with grounded answer text and source citations.
-   */
   sendQuery(query: string): Observable<ChatMessage> {
     return this.http.post<ChatMessage>(`${this.apiUrl}/api/chat/query`, {
       query,
-    } satisfies QueryRequest);
+    } satisfies QueryRequest).pipe(
+      timeout(this.requestTimeout),
+      catchError(this.handleError)
+    );
+  }
+
+  private handleError(error: any) {
+    console.error('RAG API Error:', error);
+    if (error.name === 'TimeoutError') {
+      return throwError(() => new Error('Query processing timed out. Please try again.'));
+    }
+    if (error instanceof HttpErrorResponse) {
+      return throwError(() => new Error(error.error?.detail || error.message || 'Failed to process query'));
+    }
+    return throwError(() => error);
   }
 }

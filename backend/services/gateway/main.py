@@ -63,7 +63,7 @@ async def proxy(request: Request, path: str):
 
     # Forward request (including multipart files).
     # IMPORTANT: preserve Content-Type so multipart boundary is not lost.
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         try:
             body = await request.body()
 

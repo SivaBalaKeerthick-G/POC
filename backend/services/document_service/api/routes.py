@@ -94,11 +94,11 @@ async def upload_document(
         original_filename=file.filename,
         file_size=_fmt_size(size_bytes),
         category=category,
-        status="Processing",
+        status="Indexed",
         chunks_count=0,
     )
     db.add(doc)
-    await db.flush()  # get doc.id before commit
+    await db.flush()
 
     chroma_ids_written: list[str] = []
 
@@ -130,7 +130,7 @@ async def upload_document(
             documents=texts,
             metadatas=metadatas,
         )
-        chroma_ids_written = chroma_ids  # track for rollback
+        chroma_ids_written = chroma_ids
 
         # ── Phase 5: Write chunk rows to PostgreSQL ───────────────────────────
         db.add_all([
@@ -145,15 +145,14 @@ async def upload_document(
         ])
 
         # ── Phase 6: Mark document as Indexed ─────────────────────────────────
-        doc.status = "Indexed"
         doc.chunks_count = len(chunks)
         doc.updated_at = datetime.utcnow()
-        # PG commit happens when get_db() context manager exits
+        await db.flush()
 
         logger.info(
             "Indexed '%s': %d chunks, %d tokens avg",
             file.filename, len(chunks),
-            sum(c["tokens"] for c in chunks) // len(chunks),
+            sum(c["tokens"] for c in chunks) // len(chunks) if chunks else 0,
         )
 
     except Exception as exc:
@@ -171,7 +170,7 @@ async def upload_document(
         except OSError:
             pass
 
-        # PG rollback happens automatically when get_db() catches the exception
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
 
     return _fmt_doc(doc)
@@ -187,33 +186,29 @@ async def delete_document(doc_id: str, db: AsyncSession = Depends(get_db)):
     """
     doc_uuid = _parse_uuid(doc_id)
 
-    # Verify document exists
     doc_result = await db.execute(select(Document).where(Document.id == doc_uuid))
     doc = doc_result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
 
-    # Collect chroma IDs from PG (before deleting)
     chunk_result = await db.execute(
         select(Chunk.chroma_id).where(Chunk.document_id == doc_uuid)
     )
     chroma_ids = [row[0] for row in chunk_result.all() if row[0]]
 
-    # ── Step 1: Delete vectors from ChromaDB ──────────────────────────────────
     if chroma_ids:
         try:
             delete_from_chroma(chroma_ids)
             logger.info("Deleted %d ChromaDB vectors for document %s", len(chroma_ids), doc_id)
         except Exception as chroma_err:
-            # ChromaDB failed — do NOT delete PG record to keep stores in sync
             logger.error("ChromaDB delete failed for doc %s: %s", doc_id, chroma_err)
             raise HTTPException(
                 status_code=500,
-                detail=f"Vector store deletion failed. Document not deleted to maintain sync. Error: {chroma_err}",
+                detail=f"Vector store deletion failed. Error: {chroma_err}",
             )
 
-    # ── Step 2: Delete from PostgreSQL (CASCADE deletes chunks too) ───────────
     await db.execute(delete(Document).where(Document.id == doc_uuid))
+    await db.flush()
     logger.info("Deleted document %s ('%s') from PostgreSQL.", doc_id, doc.name)
 
 
@@ -279,6 +274,7 @@ async def reindex_document(doc_id: str, db: AsyncSession = Depends(get_db)):
         doc.status = "Indexed"
         doc.chunks_count = len(chunks)
         doc.updated_at = datetime.utcnow()
+        await db.flush()
 
     except Exception as exc:
         if chroma_ids_written:
@@ -286,6 +282,7 @@ async def reindex_document(doc_id: str, db: AsyncSession = Depends(get_db)):
                 delete_from_chroma(chroma_ids_written)
             except Exception:
                 pass
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Reindex failed: {exc}")
 
     return _fmt_doc(doc)
