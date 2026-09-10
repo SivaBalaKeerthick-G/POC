@@ -1,0 +1,15 @@
+@if (authService.isLoading()) {
+  <div class="loading-screen">Loading...</div>
+} @else {
+  @if (showNavbar) {
+    <app-navbar />
+  }
+
+  <main class="page-content">
+    <router-outlet />
+  </main>
+
+  @if (showNavbar) {
+    <app-footer />
+  }
+}
