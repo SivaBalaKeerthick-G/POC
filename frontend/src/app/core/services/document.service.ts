@@ -2,7 +2,13 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, timeout, catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { DocumentFile, VectorChunk, DashboardMetrics } from '../../models/document.model';
+import {
+  DocumentFile,
+  VectorChunk,
+  DashboardMetrics,
+  DocumentMetadataUpdate,
+  IndexHealth,
+} from '../../models/document.model';
 
 @Injectable({
   providedIn: 'root',
@@ -29,6 +35,13 @@ export class DocumentService {
     );
   }
 
+  updateDocument(id: string, changes: DocumentMetadataUpdate): Observable<DocumentFile> {
+    return this.http.patch<DocumentFile>(`${this.apiUrl}/api/documents/${id}`, changes).pipe(
+      timeout(this.requestTimeout),
+      catchError(this.handleError)
+    );
+  }
+
   deleteDocument(id: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/api/documents/${id}`).pipe(
       timeout(this.requestTimeout),
@@ -36,8 +49,9 @@ export class DocumentService {
     );
   }
 
-  reindexDocument(id: string): Observable<void> {
-    return this.http.post<void>(`${this.apiUrl}/api/documents/${id}/reindex`, {}).pipe(
+  /** Re-chunks, re-embeds and replaces the document's vectors. */
+  reindexDocument(id: string): Observable<DocumentFile> {
+    return this.http.post<DocumentFile>(`${this.apiUrl}/api/documents/${id}/reindex`, {}).pipe(
       timeout(300000),
       catchError(this.handleError)
     );
@@ -45,6 +59,14 @@ export class DocumentService {
 
   getChunks(docId: string): Observable<VectorChunk[]> {
     return this.http.get<VectorChunk[]>(`${this.apiUrl}/api/documents/${docId}/chunks`).pipe(
+      timeout(this.requestTimeout),
+      catchError(this.handleError)
+    );
+  }
+
+  /** Chunk rows in PostgreSQL vs vectors in ChromaDB. */
+  getIndexHealth(): Observable<IndexHealth> {
+    return this.http.get<IndexHealth>(`${this.apiUrl}/api/documents/index-health`).pipe(
       timeout(this.requestTimeout),
       catchError(this.handleError)
     );

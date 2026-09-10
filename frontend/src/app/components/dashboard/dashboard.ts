@@ -4,6 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { DocumentFile, VectorChunk } from '../../models/document.model';
 import { DocumentService } from '../../core/services/document.service';
 
+interface CategoryOption {
+  value: string;
+  label: string;
+}
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -20,6 +25,14 @@ export class Dashboard implements OnInit {
   // Notification Toast State
   notificationMessage = signal<string | null>(null);
 
+  // Knowledge categories — shared by the upload and edit-metadata modals
+  readonly categories: CategoryOption[] = [
+    { value: 'Security & Policy', label: 'Security & Compliance' },
+    { value: 'IT Support', label: 'IT & Infrastructure' },
+    { value: 'Engineering', label: 'Engineering & API Specs' },
+    { value: 'HR & Operations', label: 'HR & Legal Policies' },
+  ];
+
   // Inline Upload Modal State
   isUploadModalOpen = signal(false);
   isUploading = signal(false);
@@ -27,24 +40,41 @@ export class Dashboard implements OnInit {
   selectedCategory = 'Security & Policy';
   isDragging = signal(false);
 
+  // Edit Metadata Modal State
+  docPendingEdit = signal<DocumentFile | null>(null);
+  editName = signal('');
+  editCategory = signal('');
+  isSavingEdit = signal(false);
+
   // Delete Confirm Modal State
   isDeleteConfirmOpen = signal(false);
   docPendingDelete = signal<DocumentFile | null>(null);
 
+  // Per-row re-index state — keyed by document id so a row's button can be
+  // disabled while its request is in flight (a second click used to fire a
+  // second concurrent re-index and duplicate the chunks).
+  reindexingIds = signal<Set<string>>(new Set());
+
   // Dashboard metrics (loaded from API)
-  vectorChunks = signal(0);
   monthlyQueries = signal(0);
   groundingRate = signal('—');
   avgLatencyMs = signal(0);
+  // PostgreSQL ↔ ChromaDB reconciliation
+  storeVectors = signal(0);
+  storeChunkRows = signal(0);
+  isStoreInSync = signal(true);
+  hasIndexHealth = signal(false);
 
   documents = signal<DocumentFile[]>([]);
   isLoadingDocs = signal(true);
+  isRefreshing = signal(false);
 
   private documentService = inject(DocumentService);
 
   ngOnInit(): void {
     this.loadDocuments();
     this.loadMetrics();
+    this.loadIndexHealth();
   }
 
   readonly filteredDocuments = computed(() => {
@@ -58,6 +88,35 @@ export class Dashboard implements OnInit {
         d.status.toLowerCase().includes(q)
     );
   });
+
+  // ── Derived metrics ────────────────────────────────────────────────────────
+  // The chunk total is summed from the same document list the table renders,
+  // so the "Vector Chunks" card can never disagree with the per-row counts.
+
+  readonly totalChunks = computed(() =>
+    this.documents().reduce((sum, d) => sum + d.chunksCount, 0)
+  );
+
+  readonly indexedCount = computed(
+    () => this.documents().filter((d) => d.status === 'Indexed').length
+  );
+
+  readonly processingCount = computed(
+    () => this.documents().filter((d) => d.status === 'Processing').length
+  );
+
+  /**
+   * True when the three chunk counts disagree: the total shown in the table,
+   * all chunk rows in PostgreSQL (would differ if rows were orphaned), and the
+   * vectors in ChromaDB.
+   */
+  readonly isVectorStoreOutOfSync = computed(
+    () =>
+      this.hasIndexHealth() &&
+      (!this.isStoreInSync() || this.storeChunkRows() !== this.totalChunks())
+  );
+
+  // ── Loading / refreshing ───────────────────────────────────────────────────
 
   private loadDocuments(): void {
     this.isLoadingDocs.set(true);
@@ -77,13 +136,61 @@ export class Dashboard implements OnInit {
   private loadMetrics(): void {
     this.documentService.getMetrics().subscribe({
       next: (m) => {
-        this.vectorChunks.set(m.vectorChunks);
         this.monthlyQueries.set(m.monthlyQueries);
         this.groundingRate.set(m.groundingRate);
         this.avgLatencyMs.set(m.avgLatencyMs);
       },
       error: (err) => console.error('Failed to load metrics:', err),
     });
+  }
+
+  private loadIndexHealth(): void {
+    this.documentService.getIndexHealth().subscribe({
+      next: (h) => {
+        this.storeChunkRows.set(h.chunkRows);
+        this.storeVectors.set(h.vectors);
+        this.isStoreInSync.set(h.inSync);
+        this.hasIndexHealth.set(true);
+      },
+      error: (err) => {
+        console.error('Failed to load index health:', err);
+        this.hasIndexHealth.set(false);
+      },
+    });
+  }
+
+  /**
+   * Re-reads the document list, the metrics and the index health together.
+   * Called after every mutation (upload / edit / re-index / delete) so the stat
+   * cards, the table and the vector store never drift apart.
+   */
+  refreshDashboard(): void {
+    this.isRefreshing.set(true);
+    this.documentService.getDocuments().subscribe({
+      next: (docs) => {
+        this.documents.set(docs);
+        this.isRefreshing.set(false);
+        this.syncOpenDrawer(docs);
+      },
+      error: (err) => {
+        console.error('Failed to refresh documents:', err);
+        this.isRefreshing.set(false);
+      },
+    });
+    this.loadMetrics();
+    this.loadIndexHealth();
+  }
+
+  /** Keeps the open chunk drawer pointed at the refreshed document record. */
+  private syncOpenDrawer(docs: DocumentFile[]): void {
+    const open = this.selectedDocForDrawer();
+    if (!open) return;
+    const fresh = docs.find((d) => d.id === open.id);
+    if (fresh) {
+      this.selectedDocForDrawer.set(fresh);
+    } else {
+      this.closeChunkDrawer();
+    }
   }
 
   // Toast Notification Helper (auto-dismiss after 2 seconds)
@@ -197,10 +304,12 @@ export class Dashboard implements OnInit {
 
     this.documentService.uploadDocument(file, this.selectedCategory).subscribe({
       next: (newDoc) => {
-        this.documents.update((docs) => [newDoc, ...docs]);
         this.isUploadModalOpen.set(false);
         this.isUploading.set(false);
         this.showNotification(`Document "${newDoc.name}" uploaded successfully!`);
+        // Re-read list + metrics rather than patching the list locally, so the
+        // chunk counts on the cards and in the table come from one snapshot.
+        this.refreshDashboard();
       },
       error: (err) => {
         console.error('Upload failed:', err);
@@ -239,17 +348,101 @@ export class Dashboard implements OnInit {
     this.showNotification('Chunk excerpt copied to clipboard!');
   }
 
-  // Admin Table Actions
+  /** Chunks in the drawer that are missing their vector in ChromaDB. */
+  readonly drawerMissingVectors = computed(
+    () => this.drawerChunks().filter((c) => !c.embedded).length
+  );
+
+  // ── Edit Metadata ─────────────────────────────────────────────────────────
+
   editDoc(doc: DocumentFile): void {
-    this.showNotification(`Editing metadata for: ${doc.name}`);
+    this.docPendingEdit.set(doc);
+    this.editName.set(doc.name);
+    this.editCategory.set(doc.category);
+  }
+
+  closeEditModal(): void {
+    if (this.isSavingEdit()) return;
+    this.docPendingEdit.set(null);
+  }
+
+  /** Category list for the edit modal, including any value not in the presets. */
+  readonly editCategoryOptions = computed<CategoryOption[]>(() => {
+    const current = this.docPendingEdit()?.category;
+    if (!current || this.categories.some((c) => c.value === current)) {
+      return this.categories;
+    }
+    return [...this.categories, { value: current, label: current }];
+  });
+
+  readonly isEditDirty = computed(() => {
+    const doc = this.docPendingEdit();
+    if (!doc) return false;
+    const name = this.editName().trim();
+    return name.length > 0 && (name !== doc.name || this.editCategory() !== doc.category);
+  });
+
+  saveEdit(): void {
+    const doc = this.docPendingEdit();
+    if (!doc || this.isSavingEdit() || !this.isEditDirty()) return;
+
+    this.isSavingEdit.set(true);
+    this.documentService
+      .updateDocument(doc.id, { name: this.editName().trim(), category: this.editCategory() })
+      .subscribe({
+        next: (updated) => {
+          this.isSavingEdit.set(false);
+          this.docPendingEdit.set(null);
+          this.showNotification(`Metadata updated for "${updated.name}".`);
+          this.refreshDashboard();
+        },
+        error: (err) => {
+          console.error('Metadata update failed:', err);
+          this.isSavingEdit.set(false);
+          this.showNotification(`Error: ${err.message ?? 'could not update metadata'}`);
+        },
+      });
+  }
+
+  // ── Re-index ──────────────────────────────────────────────────────────────
+
+  isReindexing(docId: string): boolean {
+    return this.reindexingIds().has(docId);
+  }
+
+  private setReindexing(docId: string, active: boolean): void {
+    this.reindexingIds.update((ids) => {
+      const next = new Set(ids);
+      if (active) {
+        next.add(docId);
+      } else {
+        next.delete(docId);
+      }
+      return next;
+    });
   }
 
   reindexDoc(doc: DocumentFile): void {
+    if (this.isReindexing(doc.id)) return;
+    this.setReindexing(doc.id, true);
+    this.showNotification(`Re-indexing "${doc.name}"…`);
+
     this.documentService.reindexDocument(doc.id).subscribe({
-      next: () => this.showNotification(`Re-indexing started for ${doc.name}.`),
+      next: (updated) => {
+        this.setReindexing(doc.id, false);
+        this.showNotification(
+          `Re-indexed "${updated.name}" — ${updated.chunksCount} chunks.`
+        );
+        this.refreshDashboard();
+        if (this.selectedDocForDrawer()?.id === doc.id) {
+          this.openChunkDrawer(updated);
+        }
+      },
       error: (err) => {
         console.error('Reindex failed:', err);
-        this.showNotification(`Error: Failed to re-index ${doc.name}.`);
+        this.setReindexing(doc.id, false);
+        this.showNotification(`Error: ${err.message ?? `failed to re-index ${doc.name}`}`);
+        this.refreshDashboard();
       },
     });
   }
@@ -274,12 +467,13 @@ export class Dashboard implements OnInit {
 
     this.documentService.deleteDocument(doc.id).subscribe({
       next: () => {
-        this.documents.update((docs) => docs.filter((d) => d.id !== doc.id));
         this.showNotification(`Removed "${doc.name}" from knowledge base.`);
+        this.refreshDashboard();
       },
       error: (err) => {
         console.error('Delete failed:', err);
         this.showNotification(`Error: Failed to delete "${doc.name}".`);
+        this.refreshDashboard();
       },
     });
   }

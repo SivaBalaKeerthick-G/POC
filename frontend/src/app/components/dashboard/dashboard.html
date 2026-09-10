@@ -39,8 +39,14 @@
         </div>
         <div class="stat-details">
           <span class="stat-title">Indexed Documents</span>
-          <span class="stat-value">{{ documents().length }}</span>
-          <span class="stat-sub positive"><i class="fa-solid fa-arrow-up"></i> +12 this week</span>
+          <span class="stat-value">{{ indexedCount() | number }}</span>
+          @if (processingCount() > 0) {
+            <span class="stat-sub warning">
+              <i class="fa-solid fa-circle-notch spin"></i> {{ processingCount() }} processing
+            </span>
+          } @else {
+            <span class="stat-sub">All files indexed</span>
+          }
         </div>
       </div>
 
@@ -50,8 +56,15 @@
         </div>
         <div class="stat-details">
           <span class="stat-title">Vector Chunks</span>
-          <span class="stat-value">{{ vectorChunks() | number }}</span>
-          <span class="stat-sub">Pinecone DB</span>
+          <span class="stat-value">{{ totalChunks() | number }}</span>
+          @if (isVectorStoreOutOfSync()) {
+            <span class="stat-sub warning" [title]="'PostgreSQL: ' + storeChunkRows() + ' chunk rows, ChromaDB: ' + storeVectors() + ' vectors'">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              Chroma DB out of sync ({{ storeVectors() | number }})
+            </span>
+          } @else {
+            <span class="stat-sub positive"><i class="fa-solid fa-check"></i> Chroma DB in sync</span>
+          }
         </div>
       </div>
 
@@ -62,7 +75,7 @@
         <div class="stat-details">
           <span class="stat-title">Monthly Queries</span>
           <span class="stat-value">{{ monthlyQueries() | number }}</span>
-          <span class="stat-sub positive"><i class="fa-solid fa-arrow-up"></i> {{ groundingRate() }} Grounded</span>
+          <span class="stat-sub">{{ groundingRate() }} grounded</span>
         </div>
       </div>
 
@@ -72,8 +85,8 @@
         </div>
         <div class="stat-details">
           <span class="stat-title">Avg. RAG Latency</span>
-          <span class="stat-value">{{ avgLatencyMs() }} ms</span>
-          <span class="stat-sub">Optimal speed</span>
+          <span class="stat-value">{{ avgLatencyMs() | number:'1.0-1' }} ms</span>
+          <span class="stat-sub">Last 30 days</span>
         </div>
       </div>
     </section>
@@ -86,13 +99,23 @@
           <p>View, edit metadata, re-index vector chunks, or remove files from search index.</p>
         </div>
 
-        <div class="search-filter">
-          <i class="fa-solid fa-magnifying-glass"></i>
-          <input
-            type="text"
-            placeholder="Filter documents..."
-            [ngModel]="filterQuery()"
-            (ngModelChange)="filterQuery.set($event)" />
+        <div class="header-controls">
+          <div class="search-filter">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              placeholder="Filter documents..."
+              [ngModel]="filterQuery()"
+              (ngModelChange)="filterQuery.set($event)" />
+          </div>
+
+          <button
+            class="icon-btn refresh"
+            title="Refresh documents and metrics"
+            (click)="refreshDashboard()"
+            [disabled]="isRefreshing()">
+            <i class="fa-solid fa-arrows-rotate" [class.spin]="isRefreshing()"></i>
+          </button>
         </div>
       </div>
 
@@ -143,10 +166,18 @@
                       <button class="icon-btn edit" title="Edit Metadata" (click)="editDoc(doc)">
                         <i class="fa-solid fa-pen-to-square"></i>
                       </button>
-                      <button class="icon-btn reindex" title="Re-index Chunks" (click)="reindexDoc(doc)">
-                        <i class="fa-solid fa-rotate"></i>
+                      <button
+                        class="icon-btn reindex"
+                        [title]="isReindexing(doc.id) ? 'Re-indexing…' : 'Re-index Chunks'"
+                        (click)="reindexDoc(doc)"
+                        [disabled]="isReindexing(doc.id)">
+                        <i class="fa-solid" [class.fa-rotate]="!isReindexing(doc.id)" [class.fa-circle-notch]="isReindexing(doc.id)" [class.spin]="isReindexing(doc.id)"></i>
                       </button>
-                      <button class="icon-btn delete" title="Delete File" (click)="requestDelete(doc)">
+                      <button
+                        class="icon-btn delete"
+                        title="Delete File"
+                        (click)="requestDelete(doc)"
+                        [disabled]="isReindexing(doc.id)">
                         <i class="fa-solid fa-trash-can"></i>
                       </button>
                     </div>
@@ -227,10 +258,9 @@
           <div class="form-group">
             <label for="categorySelect">Target Knowledge Category</label>
             <select id="categorySelect" [(ngModel)]="selectedCategory">
-              <option value="Security & Policy">Security &amp; Compliance</option>
-              <option value="IT Support">IT &amp; Infrastructure</option>
-              <option value="Engineering">Engineering &amp; API Specs</option>
-              <option value="HR & Operations">HR &amp; Legal Policies</option>
+              @for (cat of categories; track cat.value) {
+                <option [value]="cat.value">{{ cat.label }}</option>
+              }
             </select>
           </div>
         </div>
@@ -250,6 +280,76 @@
             } @else {
               <i class="fa-solid fa-upload"></i>
               <span>Upload Document</span>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Edit Metadata Modal -->
+  @if (docPendingEdit(); as editingDoc) {
+    <div class="modal-backdrop" (click)="closeEditModal()">
+      <div class="modal-card" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="header-title">
+            <div class="icon-badge">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </div>
+            <div>
+              <h2>Edit Document Metadata</h2>
+              <p>Rename the document or move it to a different knowledge category. Vector metadata is updated to match.</p>
+            </div>
+          </div>
+          <button class="close-btn" (click)="closeEditModal()" aria-label="Close modal" [disabled]="isSavingEdit()">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="editNameInput">Document Name</label>
+            <input
+              id="editNameInput"
+              type="text"
+              maxlength="512"
+              placeholder="Document name"
+              [ngModel]="editName()"
+              (ngModelChange)="editName.set($event)"
+              [disabled]="isSavingEdit()" />
+          </div>
+
+          <div class="form-group">
+            <label for="editCategorySelect">Knowledge Category</label>
+            <select
+              id="editCategorySelect"
+              [ngModel]="editCategory()"
+              (ngModelChange)="editCategory.set($event)"
+              [disabled]="isSavingEdit()">
+              @for (cat of editCategoryOptions(); track cat.value) {
+                <option [value]="cat.value">{{ cat.label }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="edit-meta-readonly">
+            <span><i class="fa-solid fa-cubes"></i> {{ editingDoc.chunksCount }} chunks</span>
+            <span><i class="fa-solid fa-hard-drive"></i> {{ editingDoc.size }}</span>
+            <span><i class="fa-solid fa-clock"></i> {{ editingDoc.lastUpdated }}</span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="secondary-btn" (click)="closeEditModal()" [disabled]="isSavingEdit()">
+            Cancel
+          </button>
+          <button class="primary-btn" (click)="saveEdit()" [disabled]="!isEditDirty() || isSavingEdit()">
+            @if (isSavingEdit()) {
+              <i class="fa-solid fa-circle-notch spin"></i>
+              <span>Saving...</span>
+            } @else {
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>Save Changes</span>
             }
           </button>
         </div>
@@ -299,8 +399,14 @@
 
         <div class="drawer-body">
           <div class="drawer-meta-bar">
-            <span class="meta-item"><i class="fa-solid fa-cubes"></i> Total: {{ drawerDoc.chunksCount }} Chunks</span>
+            <span class="meta-item"><i class="fa-solid fa-cubes"></i> Total: {{ drawerChunks().length }} Chunks</span>
             <span class="meta-item"><i class="fa-solid fa-tag"></i> {{ drawerDoc.category }}</span>
+            @if (drawerMissingVectors() > 0) {
+              <span class="meta-item alert">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                {{ drawerMissingVectors() }} not embedded
+              </span>
+            }
           </div>
 
           @if (isDrawerLoading()) {
@@ -314,7 +420,17 @@
                 <div class="chunk-card">
                   <div class="chunk-card-header">
                     <span class="chunk-badge">Chunk #{{ chunk.chunkIndex }}</span>
-                    <span class="score-badge"><i class="fa-solid fa-chart-simple"></i> Vector Score: {{ chunk.score }}</span>
+                    @if (chunk.embedded) {
+                      <span class="vector-badge ok" title="Embedding stored in ChromaDB">
+                        <i class="fa-solid fa-circle-check"></i>
+                        Embedded · {{ chunk.embeddingDim }}-dim
+                      </span>
+                    } @else {
+                      <span class="vector-badge missing" title="No vector found in ChromaDB — re-index this document">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        Vector missing
+                      </span>
+                    }
                   </div>
                   <p class="chunk-text">{{ chunk.textExcerpt }}</p>
                   <div class="chunk-card-footer">

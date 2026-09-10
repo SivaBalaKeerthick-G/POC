@@ -2,10 +2,17 @@
 Metrics Service API route: GET /api/metrics
 
 Aggregates live stats from PostgreSQL:
-  - vectorChunks:    total chunks across all indexed documents
+  - indexedDocuments / processingDocuments: document counts by status
+  - vectorChunks:    chunk rows in PostgreSQL — the same source the document
+                     table's per-file chunk count comes from, so the card and
+                     the table cannot disagree
   - monthlyQueries:  query count in the last 30 days
   - groundingRate:   % of queries judged PASS by the LLM-as-Judge
   - avgLatencyMs:    average RAG latency (ms) in the last 30 days
+
+The ChromaDB vector count is deliberately NOT read here: the persistent Chroma
+client is single-process, so it is owned by the document service and exposed via
+GET /api/documents/index-health.
 """
 from datetime import datetime, timedelta
 
@@ -22,6 +29,12 @@ router = APIRouter()
 @router.get("/metrics", response_model=DashboardMetrics, tags=["metrics"])
 async def get_metrics(db: AsyncSession = Depends(get_db)):
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+
+    # Document counts by status
+    docs_result = await db.execute(
+        select(Document.status, func.count(Document.id)).group_by(Document.status)
+    )
+    docs_by_status = {status: count for status, count in docs_result.all()}
 
     # Total vector chunks across all indexed documents
     chunks_result = await db.execute(select(func.count(Chunk.id)))
@@ -62,6 +75,8 @@ async def get_metrics(db: AsyncSession = Depends(get_db)):
     avg_latency = latency_result.scalar() or 0.0
 
     return DashboardMetrics(
+        indexedDocuments=docs_by_status.get("Indexed", 0),
+        processingDocuments=docs_by_status.get("Processing", 0),
         vectorChunks=total_chunks,
         monthlyQueries=monthly_queries,
         groundingRate=grounding_rate,

@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DocumentStatus(str, Enum):
@@ -30,17 +30,32 @@ class VectorChunk(BaseModel):
     """A single vector chunk returned to the chunk inspector drawer."""
     id: str
     chunkIndex: int
-    score: str
     tokens: int
     textExcerpt: str
+    # Embedding state in ChromaDB. A similarity score is only defined relative
+    # to a query, so a stored chunk reports whether it is embedded instead.
+    embedded: bool
+    embeddingDim: int | None = None
 
 
 class DashboardMetrics(BaseModel):
     """Dashboard stat cards data."""
-    vectorChunks: int
+    indexedDocuments: int
+    processingDocuments: int
+    vectorChunks: int          # chunk rows in PostgreSQL
     monthlyQueries: int
     groundingRate: str
     avgLatencyMs: float
+
+
+class IndexHealth(BaseModel):
+    """
+    PostgreSQL ↔ ChromaDB reconciliation, served by the document service (the
+    owner of the persistent Chroma client).
+    """
+    chunkRows: int      # chunk rows in PostgreSQL
+    vectors: int        # vectors in ChromaDB
+    inSync: bool
 
 
 # ── Internal DB Models (snake_case) ──────────────────────────────────────────
@@ -55,6 +70,12 @@ class DocumentCreate(BaseModel):
 class DocumentUpdate(BaseModel):
     status: DocumentStatus | None = None
     chunks_count: int | None = None
+
+
+class DocumentMetadataUpdate(BaseModel):
+    """PATCH /api/documents/{id} body — editable metadata from the admin table."""
+    name: str | None = Field(default=None, min_length=1, max_length=512)
+    category: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class ChunkCreate(BaseModel):
