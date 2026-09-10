@@ -44,6 +44,7 @@ async def query(
 
     if not ranked_chunks:
         return ChatMessage(
+            role="ai",
             content="I could not find relevant information in the knowledge base for your query.",
             sources=[],
         )

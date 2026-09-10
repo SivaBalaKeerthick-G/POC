@@ -42,7 +42,7 @@ def _fmt_doc(doc: Document) -> DocumentFile:
         size=doc.file_size,
         category=doc.category,
         chunksCount=doc.chunks_count,
-        status=doc.status,
+        status="Indexed" if doc.status == "Indexed" else "Processing",
         lastUpdated=updated.strftime("%b %d, %Y") if isinstance(updated, datetime) else str(updated),
     )
 

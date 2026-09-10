@@ -58,6 +58,14 @@ async def evaluate(req: JudgeEvalRequest, db: AsyncSession = Depends(get_db)):
     Evaluate the RAG answer via LangChain ChatGroq chain and write scores back to query_logs.
     Called asynchronously by the RAG service background task.
     """
+    import uuid
+
+    # Validate query_log_id is a valid UUID
+    try:
+        query_log_uuid = uuid.UUID(req.query_log_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid query_log_id format. Must be a valid UUID.")
+
     chain = _get_judge_chain()
 
     try:
@@ -79,7 +87,7 @@ async def evaluate(req: JudgeEvalRequest, db: AsyncSession = Depends(get_db)):
     # Write scores back to PostgreSQL query_logs
     await db.execute(
         update(QueryLog)
-        .where(QueryLog.id == req.query_log_id)
+        .where(QueryLog.id == query_log_uuid)
         .values(
             judge_faithfulness=faithfulness,
             judge_relevance=relevance,
@@ -88,6 +96,7 @@ async def evaluate(req: JudgeEvalRequest, db: AsyncSession = Depends(get_db)):
             judge_reasoning=reasoning,
         )
     )
+    await db.flush()
 
     return JudgeScore(
         faithfulness=faithfulness,

@@ -66,6 +66,10 @@ def _reciprocal_rank_fusion(
     for rank, doc in enumerate(dense_docs):
         doc_id = doc.metadata.get("document_id", "")
         chunk_idx = doc.metadata.get("chunk_index", rank)
+        filename = doc.metadata.get("filename", "Unknown")
+        # ChromaDB stores filename as part of the uploaded metadata
+        if not filename or filename == "Unknown":
+            filename = doc.metadata.get("filename", "Unknown Document")
         key = f"{doc_id}:{chunk_idx}"
 
         scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank + 1)
@@ -73,12 +77,13 @@ def _reciprocal_rank_fusion(
             "text": doc.page_content,
             "document_id": doc_id,
             "chunk_index": chunk_idx,
-            "filename": doc.metadata.get("filename", "Unknown"),
+            "filename": filename,
         }
 
     for rank, doc in enumerate(sparse_docs):
         doc_id = doc.metadata.get("document_id", "")
         chunk_idx = doc.metadata.get("chunk_index", rank)
+        filename = doc.metadata.get("filename", "Unknown")
         key = f"{doc_id}:{chunk_idx}"
 
         scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank + 1)
@@ -87,7 +92,7 @@ def _reciprocal_rank_fusion(
                 "text": doc.page_content,
                 "document_id": doc_id,
                 "chunk_index": chunk_idx,
-                "filename": doc.metadata.get("filename", "Unknown"),
+                "filename": filename,
             }
 
     sorted_keys = sorted(scores, key=lambda k_: scores[k_], reverse=True)
