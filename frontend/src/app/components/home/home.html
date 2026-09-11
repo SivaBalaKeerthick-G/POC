@@ -16,17 +16,17 @@
     <!-- Quick Prompts (Only shown before searching) -->
     @if (messages().length === 0) {
       <div class="quick-chips">
-        <button class="chip" (click)="selectPrompt('What is our internal data retention policy?')">
+        <button class="chip" (click)="selectPrompt('What is our dress code policy?')">
           <i class="fa-solid fa-magnifying-glass"></i>
-          Data Retention Policy
+          Dress code Policy
         </button>
-        <button class="chip" (click)="selectPrompt('How do I request IT hardware support?')">
+        <button class="chip" (click)="selectPrompt('How to resolve a network issue?')">
           <i class="fa-solid fa-headset"></i>
-          Hardware Support Steps
+          Network Support
         </button>
-        <button class="chip" (click)="selectPrompt('Summarize the latest API guidelines.')">
+        <button class="chip" (click)="selectPrompt('what is our reimbursement policy?')">
           <i class="fa-solid fa-code"></i>
-          API Guidelines
+          Reimbursement
         </button>
       </div>
     }

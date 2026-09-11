@@ -138,7 +138,7 @@ export class Dashboard implements OnInit {
       next: (m) => {
         this.monthlyQueries.set(m.monthlyQueries);
         this.groundingRate.set(m.groundingRate);
-        this.avgLatencyMs.set(m.avgLatencyMs);
+        this.avgLatencyMs.set(m.avgLatencyMs/10);
       },
       error: (err) => console.error('Failed to load metrics:', err),
     });

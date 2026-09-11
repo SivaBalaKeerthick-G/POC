@@ -38,7 +38,7 @@
           <i class="fa-solid fa-folder-open"></i>
         </div>
         <div class="stat-details">
-          <span class="stat-title">Indexed Documents</span>
+          <span class="stat-title">Total Documents</span>
           <span class="stat-value">{{ indexedCount() | number }}</span>
           @if (processingCount() > 0) {
             <span class="stat-sub warning">
@@ -55,15 +55,20 @@
           <i class="fa-solid fa-cubes"></i>
         </div>
         <div class="stat-details">
-          <span class="stat-title">Vector Chunks</span>
+          <span class="stat-title">Total Chunks</span>
           <span class="stat-value">{{ totalChunks() | number }}</span>
           @if (isVectorStoreOutOfSync()) {
             <span class="stat-sub warning" [title]="'PostgreSQL: ' + storeChunkRows() + ' chunk rows, ChromaDB: ' + storeVectors() + ' vectors'">
               <i class="fa-solid fa-triangle-exclamation"></i>
-              Chroma DB out of sync ({{ storeVectors() | number }})
+              <!-- Chroma DB out of sync -->
+               Total
+             ({{ storeVectors() | number }})
             </span>
           } @else {
-            <span class="stat-sub positive"><i class="fa-solid fa-check"></i> Chroma DB in sync</span>
+            <span class="stat-sub positive"><i class="fa-solid fa-check"></i> 
+              <!-- Chroma DB in sync -->
+               Total
+            </span>
           }
         </div>
       </div>
@@ -75,7 +80,10 @@
         <div class="stat-details">
           <span class="stat-title">Monthly Queries</span>
           <span class="stat-value">{{ monthlyQueries() | number }}</span>
-          <span class="stat-sub">{{ groundingRate() }} grounded</span>
+          <span class="stat-sub">
+            <!-- {{ groundingRate() }}  -->
+            Last 30 days
+          </span>
         </div>
       </div>
 
@@ -423,7 +431,7 @@
                     @if (chunk.embedded) {
                       <span class="vector-badge ok" title="Embedding stored in ChromaDB">
                         <i class="fa-solid fa-circle-check"></i>
-                        Embedded · {{ chunk.embeddingDim }}-dim
+                        <!-- Embedded · {{ chunk.embeddingDim }}-dim -->
                       </span>
                     } @else {
                       <span class="vector-badge missing" title="No vector found in ChromaDB — re-index this document">
@@ -434,7 +442,9 @@
                   </div>
                   <p class="chunk-text">{{ chunk.textExcerpt }}</p>
                   <div class="chunk-card-footer">
-                    <span class="token-count"><i class="fa-solid fa-code"></i> {{ chunk.tokens }} tokens</span>
+                    <span class="token-count"><i class="fa-solid fa-code"></i>
+                       <!-- {{ chunk.tokens }} tokens -->
+                    </span>
                     <button class="copy-btn" (click)="copyChunk(chunk.textExcerpt)">
                       <i class="fa-solid fa-copy"></i> Copy
                     </button>
