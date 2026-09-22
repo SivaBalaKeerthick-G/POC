@@ -38,6 +38,7 @@ SERVICE_MAP = {
     "/api/documents": settings.DOCUMENT_SERVICE_URL,
     "/api/chat":      settings.RAG_SERVICE_URL,
     "/api/metrics":   settings.METRICS_SERVICE_URL,
+    "/api/judge":     settings.JUDGE_SERVICE_URL,
 }
 
 

@@ -39,7 +39,7 @@ def _get_generator_chain():
     model = ChatGoogleGenerativeAI(
         model=settings.GEMINI_GENERATION_MODEL,
         google_api_key=settings.GEMINI_API_KEY,
-        temperature=0.2,
+        temperature=0.0,
         max_output_tokens=1024,
         client_args=google_client_args(),
     )
