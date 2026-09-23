@@ -271,3 +271,19 @@
 @keyframes spin {
   100% { transform: rotate(360deg); }
 }
+
+.message-bubble,
+.ai-card p {
+  word-break: break-word;
+}
+
+@media (max-width: 480px) {
+
+  .message.user-message .message-bubble {
+    max-width: 100%;
+  }
+
+  .chip {
+    width: 100%;
+  }
+}
