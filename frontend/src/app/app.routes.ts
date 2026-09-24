@@ -44,9 +44,13 @@ export const routes: Routes = [
       import('./components/unauthorized/unauthorized').then((m) => m.Unauthorized),
   },
 
-  // Wildcard — must be last; loads PageNotFound component directly (no redirect string)
   {
     path: '**',
+    redirectTo: 'page-not-found',
+  },
+  
+  {
+    path: 'page-not-found',
     loadComponent: () =>
       import('./components/page-not-found/page-not-found').then((m) => m.PageNotFound),
   },

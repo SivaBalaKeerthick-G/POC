@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import emailjs from '@emailjs/browser';
@@ -12,9 +12,9 @@ import { environment } from '../../../environments/environment';
   styleUrl: './contact.scss',
 })
 export class Contact {
-  isSubmitting = false;
-  isSubmitted = false;
-  errorMessage: string | null = null;
+  isSubmitting = signal(false);
+  isSubmitted = signal(false);
+  errorMessage = signal<string | null>(null);
 
   formData = {
     name: '',
@@ -31,10 +31,10 @@ export class Contact {
   };
 
   onSubmit(): void {
-    if (this.isSubmitting) return;
+    if (this.isSubmitting()) return;
 
-    this.isSubmitting = true;
-    this.errorMessage = null;
+    this.isSubmitting.set(true);
+    this.errorMessage.set(null);
 
     const templateParams = {
       from_name: this.formData.name,
@@ -60,19 +60,19 @@ export class Contact {
 
     Promise.all(emailPromises)
       .then(() => {
-        this.isSubmitted = true;
-        this.isSubmitting = false;
+        this.isSubmitted.set(true);
+        this.isSubmitting.set(false);
         this.formData = { name: '', email: '', category: 'access', message: '' };
       })
       .catch((err) => {
         console.error('EmailJS error:', err);
-        this.errorMessage = 'Failed to send your message. Please try again or email us directly.';
-        this.isSubmitting = false;
+        this.errorMessage.set('Failed to send your message. Please try again or email us directly.');
+        this.isSubmitting.set(false);
       });
   }
 
   sendAnother(): void {
-    this.isSubmitted = false;
-    this.errorMessage = null;
+    this.isSubmitted.set(false);
+    this.errorMessage.set(null);
   }
 }

@@ -25,7 +25,7 @@
           <div>
             <h3>Email Support</h3>
             <p>support&#64;company.com</p>
-            <span class="subtext">24/7 ticket monitoring</span>
+            <span class="subtext">24/7 available</span>
           </div>
         </div>
 
@@ -36,7 +36,7 @@
           <div>
             <h3>Security & Compliance</h3>
             <p>security&#64;company.com</p>
-            <span class="subtext">SOC2 & audit requests</span>
+            <span class="subtext">Reach out for security-related inquiries</span>
           </div>
         </div>
 
@@ -46,29 +46,29 @@
           </div>
           <div>
             <h3>Support Hours</h3>
-            <p>Mon - Fri: 8:00 AM - 6:00 PM EST</p>
-            <span class="subtext">Emergency support available for admins</span>
+            <p>Mon - Fri: 8:00 AM - 6:00 PM IST</p>
+            <span class="subtext">Emergency support available</span>
           </div>
         </div>
       </div>
 
       <!-- Right Form Panel -->
       <div class="form-card">
-        @if (isSubmitted) {
+        @if (isSubmitted()) {
           <!-- Inline Success State -->
           <div class="success-state">
             <div class="success-icon">
               <i class="fa-solid fa-envelope-open-text"></i>
             </div>
-            <h2>Email Client Opened!</h2>
-            <p>Your support ticket details have been pre-filled in your email client. Just hit <strong>Send</strong> to submit it to our team.</p>
+            <h2>Email has been sent!Check your inbox for confirmation...</h2>
+            <!-- <p>Your support ticket details have been pre-filled in your email client. Just hit <strong>Send</strong> to submit it to our team.</p> -->
             <button class="submit-btn" (click)="sendAnother()">
               <i class="fa-solid fa-rotate-left"></i>
               <span>Send Another</span>
             </button>
           </div>
         } @else {
-          <h2>Submit a Ticket</h2>
+          <h2>Contact Us</h2>
           <p class="form-subtitle">Fill out the form below and an IT specialist will respond shortly.</p>
 
           <form (ngSubmit)="onSubmit()" #contactForm="ngForm">
@@ -115,8 +115,8 @@
                 required></textarea>
             </div>
 
-            <button type="submit" class="submit-btn" [disabled]="!contactForm.form.valid || isSubmitting">
-              @if (isSubmitting) {
+            <button type="submit" class="submit-btn" [disabled]="!contactForm.form.valid || isSubmitting()">
+              @if (isSubmitting()) {
                 <i class="fa-solid fa-circle-notch spin"></i>
                 <span>Sending...</span>
               } @else {
@@ -125,10 +125,10 @@
               }
             </button>
 
-            @if (errorMessage) {
+            @if (errorMessage(); as error) {
               <div class="error-banner">
                 <i class="fa-solid fa-circle-exclamation"></i>
-                {{ errorMessage }}
+                {{ error }}
               </div>
             }
           </form>

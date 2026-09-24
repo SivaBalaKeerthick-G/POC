@@ -13,14 +13,22 @@ Pipeline:
   9. Return ChatMessage
 """
 import time
+import uuid
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings
 from shared.db.postgres import QueryLog, get_db
-from shared.models.chat import ChatMessage, JudgeEvalRequest, QueryRequest, SourceChunk
+from shared.models.chat import (
+    ChatMessage,
+    FeedbackRequest,
+    JudgeEvalRequest,
+    QueryRequest,
+    SourceChunk,
+)
 from services.rag_service.core.retriever import hybrid_retrieve
 from services.rag_service.core.reranker import rerank_chunks
 from services.rag_service.core.generator import generate_answer
@@ -44,6 +52,7 @@ async def query(
 
     if not ranked_chunks:
         return ChatMessage(
+            role="ai",
             content="I could not find relevant information in the knowledge base for your query.",
             sources=[],
         )
@@ -90,7 +99,47 @@ async def query(
         context=context,
     )
 
-    return ChatMessage(role="ai", content=answer_text, sources=sources)
+    return ChatMessage(
+        role="ai",
+        content=answer_text,
+        sources=sources,
+        queryLogId=log_id,
+    )
+
+
+@router.post("/chat/feedback", tags=["chat"])
+async def submit_feedback(
+    req: FeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Records user feedback (thumbs_up or thumbs_down) for an answered query.
+    Used alongside LLM Judge evaluations to compute Precision, Recall, and F1.
+    """
+    if req.feedback not in ("thumbs_up", "thumbs_down"):
+        raise HTTPException(
+            status_code=400,
+            detail="Feedback must be 'thumbs_up' or 'thumbs_down'",
+        )
+
+    try:
+        query_uuid = uuid.UUID(req.query_log_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid query_log_id format. Must be a valid UUID.",
+        )
+
+    result = await db.execute(
+        update(QueryLog)
+        .where(QueryLog.id == query_uuid)
+        .values(user_feedback=req.feedback)
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Query log entry not found.")
+
+    await db.commit()
+    return {"status": "ok", "query_log_id": req.query_log_id, "feedback": req.feedback}
 
 
 async def _call_judge(query_log_id: str, query: str, answer: str, context: str) -> None:

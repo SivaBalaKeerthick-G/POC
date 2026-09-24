@@ -18,6 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.config import settings
 from shared.db.postgres import QueryLog, get_db
 from shared.models.chat import JudgeEvalRequest, JudgeScore
+from shared.ssl_config import groq_client_args
+from shared.ssl_config import google_client_args
+from langchain_google_genai import ChatGoogleGenerativeAI
+
 
 router = APIRouter()
 
@@ -43,11 +47,19 @@ _JUDGE_PROMPT = PromptTemplate(
 
 
 def _get_judge_chain():
-    llm = ChatGroq(
-        model=settings.GROQ_MODEL,
-        api_key=settings.GROQ_API_KEY,
+    # llm = ChatGroq(
+    #     model=settings.GROQ_MODEL,
+    #     api_key=settings.GROQ_API_KEY,
+    #     temperature=0.0,
+    #     max_tokens=256,
+    #     **groq_client_args(),
+    # )
+    llm = ChatGoogleGenerativeAI(
+        model=settings.GEMINI_GENERATION_MODEL,
+        google_api_key=settings.GEMINI_API_KEY,
         temperature=0.0,
-        max_tokens=256,
+        max_output_tokens=1024,
+        client_args=google_client_args(),
     )
     return _JUDGE_PROMPT | llm | _parser
 
@@ -55,9 +67,17 @@ def _get_judge_chain():
 @router.post("/judge/evaluate", response_model=JudgeScore, tags=["judge"])
 async def evaluate(req: JudgeEvalRequest, db: AsyncSession = Depends(get_db)):
     """
-    Evaluate the RAG answer via LangChain ChatGroq chain and write scores back to query_logs.
+    Evaluate the RAG answer via LangChain ChatGoogleGenerativeAI chain and write scores back to query_logs.
     Called asynchronously by the RAG service background task.
     """
+    import uuid
+
+    # Validate query_log_id is a valid UUID
+    try:
+        query_log_uuid = uuid.UUID(req.query_log_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid query_log_id format. Must be a valid UUID.")
+
     chain = _get_judge_chain()
 
     try:
@@ -67,7 +87,7 @@ async def evaluate(req: JudgeEvalRequest, db: AsyncSession = Depends(get_db)):
             "answer": req.answer,
         })
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"LangChain Groq evaluation failed: {exc}")
+        raise HTTPException(status_code=502, detail=f"LangChain GoogleGenerativeAI evaluation failed: {exc}")
 
     # Validate and clamp scores
     faithfulness = max(0.0, min(10.0, float(scores.get("faithfulness", 0))))
@@ -79,7 +99,7 @@ async def evaluate(req: JudgeEvalRequest, db: AsyncSession = Depends(get_db)):
     # Write scores back to PostgreSQL query_logs
     await db.execute(
         update(QueryLog)
-        .where(QueryLog.id == req.query_log_id)
+        .where(QueryLog.id == query_log_uuid)
         .values(
             judge_faithfulness=faithfulness,
             judge_relevance=relevance,
@@ -88,6 +108,7 @@ async def evaluate(req: JudgeEvalRequest, db: AsyncSession = Depends(get_db)):
             judge_reasoning=reasoning,
         )
     )
+    await db.commit()
 
     return JudgeScore(
         faithfulness=faithfulness,

@@ -13,6 +13,11 @@ Delete guarantee:
   - ChromaDB vectors deleted first
   - PG document+chunks deleted (CASCADE)
   - If ChromaDB delete fails → PG NOT deleted, error returned (data stays in sync)
+
+Concurrency guarantee:
+  - Upload/reindex/edit/delete all take a row lock on the document first, so two
+    overlapping requests (e.g. a double-clicked "Re-index") run one after the
+    other instead of interleaving and each inserting its own copy of the chunks.
 """
 import logging
 import os
@@ -20,31 +25,70 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.db.postgres import Chunk, Document, get_db
-from shared.models.document import DocumentFile, VectorChunk
+from shared.models.document import (
+    DocumentFile,
+    DocumentMetadataUpdate,
+    IndexHealth,
+    VectorChunk,
+)
 from services.document_service.core.chunker import SUPPORTED_TYPES, chunk_document
 from services.document_service.core.embedder import embed_texts
-from services.document_service.core.indexer import add_to_chroma, delete_from_chroma, get_chunks_from_chroma
+from services.document_service.core.indexer import (
+    add_to_chroma,
+    count_all_vectors,
+    delete_document_vectors,
+    delete_from_chroma,
+    get_chunks_from_chroma,
+    get_document_vector_ids,
+    update_document_vector_metadata,
+)
 from shared.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _fmt_doc(doc: Document) -> DocumentFile:
+def _fmt_doc(doc: Document, chunks_count: int | None = None) -> DocumentFile:
+    """
+    `chunks_count` is the live count of chunk rows. It is passed in (rather than
+    read off the denormalised documents.chunks_count column) so the count shown
+    in the table always comes from the same source as the dashboard's total.
+    """
     updated = doc.updated_at or doc.created_at
     return DocumentFile(
         id=str(doc.id),
         name=doc.name,
         size=doc.file_size,
         category=doc.category,
-        chunksCount=doc.chunks_count,
-        status=doc.status,
+        chunksCount=doc.chunks_count if chunks_count is None else chunks_count,
+        status="Indexed" if doc.status == "Indexed" else "Processing",
         lastUpdated=updated.strftime("%b %d, %Y") if isinstance(updated, datetime) else str(updated),
     )
+
+
+async def _lock_document(db: AsyncSession, doc_uuid: uuid.UUID) -> Document:
+    """
+    Fetch a document with a row-level lock (SELECT ... FOR UPDATE).
+    Serialises concurrent reindex/edit/delete requests for the same document.
+    """
+    result = await db.execute(
+        select(Document).where(Document.id == doc_uuid).with_for_update()
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return doc
+
+
+async def _count_chunks(db: AsyncSession, doc_uuid: uuid.UUID) -> int:
+    result = await db.execute(
+        select(func.count(Chunk.id)).where(Chunk.document_id == doc_uuid)
+    )
+    return result.scalar() or 0
 
 
 # ── LIST ──────────────────────────────────────────────────────────────────────
@@ -52,7 +96,36 @@ def _fmt_doc(doc: Document) -> DocumentFile:
 @router.get("/documents", response_model=list[DocumentFile], tags=["documents"])
 async def list_documents(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Document).order_by(Document.created_at.desc()))
-    return [_fmt_doc(d) for d in result.scalars().all()]
+    docs = result.scalars().all()
+
+    counts_result = await db.execute(
+        select(Chunk.document_id, func.count(Chunk.id)).group_by(Chunk.document_id)
+    )
+    counts = {doc_id: count for doc_id, count in counts_result.all()}
+
+    return [_fmt_doc(d, counts.get(d.id, 0)) for d in docs]
+
+
+# ── INDEX HEALTH (PostgreSQL ↔ ChromaDB reconciliation) ───────────────────────
+
+@router.get("/documents/index-health", response_model=IndexHealth, tags=["documents"])
+async def index_health(db: AsyncSession = Depends(get_db)):
+    """
+    Compare chunk rows in PostgreSQL against vectors in ChromaDB so the
+    dashboard can flag drift instead of quietly showing two different numbers.
+    Lives here because the persistent Chroma client is single-process and this
+    service owns it.
+    """
+    rows_result = await db.execute(select(func.count(Chunk.id)))
+    chunk_rows = rows_result.scalar() or 0
+
+    try:
+        vectors = count_all_vectors()
+    except Exception as exc:
+        logger.warning("Could not read ChromaDB vector count: %s", exc)
+        raise HTTPException(status_code=503, detail=f"Vector store unavailable: {exc}")
+
+    return IndexHealth(chunkRows=chunk_rows, vectors=vectors, inSync=chunk_rows == vectors)
 
 
 # ── UPLOAD (with transactional sync) ─────────────────────────────────────────
@@ -98,7 +171,7 @@ async def upload_document(
         chunks_count=0,
     )
     db.add(doc)
-    await db.flush()  # get doc.id before commit
+    await db.flush()
 
     chroma_ids_written: list[str] = []
 
@@ -130,7 +203,7 @@ async def upload_document(
             documents=texts,
             metadatas=metadatas,
         )
-        chroma_ids_written = chroma_ids  # track for rollback
+        chroma_ids_written = chroma_ids
 
         # ── Phase 5: Write chunk rows to PostgreSQL ───────────────────────────
         db.add_all([
@@ -148,12 +221,12 @@ async def upload_document(
         doc.status = "Indexed"
         doc.chunks_count = len(chunks)
         doc.updated_at = datetime.utcnow()
-        # PG commit happens when get_db() context manager exits
+        await db.flush()
 
         logger.info(
             "Indexed '%s': %d chunks, %d tokens avg",
             file.filename, len(chunks),
-            sum(c["tokens"] for c in chunks) // len(chunks),
+            sum(c["tokens"] for c in chunks) // len(chunks) if chunks else 0,
         )
 
     except Exception as exc:
@@ -171,10 +244,50 @@ async def upload_document(
         except OSError:
             pass
 
-        # PG rollback happens automatically when get_db() catches the exception
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
 
-    return _fmt_doc(doc)
+    return _fmt_doc(doc, len(chunks))
+
+
+# ── EDIT METADATA ─────────────────────────────────────────────────────────────
+
+@router.patch("/documents/{doc_id}", response_model=DocumentFile, tags=["documents"])
+async def update_document_metadata(
+    doc_id: str,
+    payload: DocumentMetadataUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Update a document's display name and/or knowledge category.
+    The same values are written onto every one of its vectors' metadata, so the
+    vector store and PostgreSQL never disagree about a document's category.
+    """
+    doc_uuid = _parse_uuid(doc_id)
+    doc = await _lock_document(db, doc_uuid)
+
+    updates: dict[str, str] = {}
+    if payload.name is not None and payload.name.strip() and payload.name != doc.name:
+        doc.name = payload.name.strip()
+        updates["filename"] = doc.name
+    if payload.category is not None and payload.category != doc.category:
+        doc.category = payload.category
+        updates["category"] = doc.category
+
+    if updates:
+        try:
+            update_document_vector_metadata(str(doc.id), updates)
+        except Exception as chroma_err:
+            logger.error("Chroma metadata update failed for doc %s: %s", doc_id, chroma_err)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Vector metadata update failed: {chroma_err}",
+            )
+        doc.updated_at = datetime.utcnow()
+        await db.flush()
+        logger.info("Updated metadata for document %s: %s", doc_id, updates)
+
+    return _fmt_doc(doc, await _count_chunks(db, doc_uuid))
 
 
 # ── DELETE (with sync guarantee) ─────────────────────────────────────────────
@@ -186,34 +299,22 @@ async def delete_document(doc_id: str, db: AsyncSession = Depends(get_db)):
     If ChromaDB deletion fails, the PG record is NOT deleted (stores stay in sync).
     """
     doc_uuid = _parse_uuid(doc_id)
+    doc = await _lock_document(db, doc_uuid)
 
-    # Verify document exists
-    doc_result = await db.execute(select(Document).where(Document.id == doc_uuid))
-    doc = doc_result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
+    try:
+        # Purge by document_id tag rather than by the chroma_ids tracked in PG,
+        # so vectors orphaned by an earlier failure are removed too.
+        removed = delete_document_vectors(str(doc_uuid))
+        logger.info("Deleted %d ChromaDB vectors for document %s", removed, doc_id)
+    except Exception as chroma_err:
+        logger.error("ChromaDB delete failed for doc %s: %s", doc_id, chroma_err)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Vector store deletion failed. Error: {chroma_err}",
+        )
 
-    # Collect chroma IDs from PG (before deleting)
-    chunk_result = await db.execute(
-        select(Chunk.chroma_id).where(Chunk.document_id == doc_uuid)
-    )
-    chroma_ids = [row[0] for row in chunk_result.all() if row[0]]
-
-    # ── Step 1: Delete vectors from ChromaDB ──────────────────────────────────
-    if chroma_ids:
-        try:
-            delete_from_chroma(chroma_ids)
-            logger.info("Deleted %d ChromaDB vectors for document %s", len(chroma_ids), doc_id)
-        except Exception as chroma_err:
-            # ChromaDB failed — do NOT delete PG record to keep stores in sync
-            logger.error("ChromaDB delete failed for doc %s: %s", doc_id, chroma_err)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Vector store deletion failed. Document not deleted to maintain sync. Error: {chroma_err}",
-            )
-
-    # ── Step 2: Delete from PostgreSQL (CASCADE deletes chunks too) ───────────
     await db.execute(delete(Document).where(Document.id == doc_uuid))
+    await db.flush()
     logger.info("Deleted document %s ('%s') from PostgreSQL.", doc_id, doc.name)
 
 
@@ -224,49 +325,61 @@ async def reindex_document(doc_id: str, db: AsyncSession = Depends(get_db)):
     """
     Re-embed and re-index a document.
     Old vectors are deleted from both stores before new ones are created.
+
+    The document row is locked first, so overlapping reindex requests queue up.
+    Without the lock, two concurrent calls each saw the same "old" chunk set,
+    each deleted only those, and each then inserted a full new set — leaving
+    twice the chunk rows/vectors for one document.
     """
     doc_uuid = _parse_uuid(doc_id)
-    doc_result = await db.execute(select(Document).where(Document.id == doc_uuid))
-    doc = doc_result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
+    doc = await _lock_document(db, doc_uuid)
 
-    # ── Remove old vectors ────────────────────────────────────────────────────
-    old_chunks_result = await db.execute(select(Chunk).where(Chunk.document_id == doc_uuid))
-    old_chunks = old_chunks_result.scalars().all()
-    old_chroma_ids = [c.chroma_id for c in old_chunks if c.chroma_id]
-
-    if old_chroma_ids:
-        try:
-            delete_from_chroma(old_chroma_ids)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Could not clear old vectors: {e}")
-
-    await db.execute(delete(Chunk).where(Chunk.document_id == doc_uuid))
-
-    # ── Find original file ────────────────────────────────────────────────────
+    # ── Find original file (before destroying anything) ───────────────────────
     file_path = _find_upload(doc.original_filename)
     if not file_path:
         raise HTTPException(status_code=404, detail="Original file not found on disk. Please re-upload.")
 
-    doc.status = "Processing"
-    await db.flush()
+    # ── Re-chunk and re-embed BEFORE touching either store ────────────────────
+    # Chunking/embedding is the step that can fail (bad file, embedding API
+    # error). Doing it first means a failure leaves the existing index intact.
+    try:
+        content_type = _guess_content_type(doc.original_filename)
+        chunks = chunk_document(file_path, content_type)
+        if not chunks:
+            raise ValueError("No text could be extracted from the document.")
+
+        texts = [c["text"] for c in chunks]
+        embeddings = await embed_texts(texts)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Reindex failed: {exc}")
+
+    # ── Swap in the new index ─────────────────────────────────────────────────
+    # Snapshot the vectors to retire *by document_id tag*, so orphans left by an
+    # earlier failed run are cleaned up too and the count cannot creep upwards.
+    # They are deleted only once the new index is safely in place, so a failure
+    # mid-way can be rolled back to the previous state instead of leaving chunk
+    # rows behind with no vector.
+    try:
+        old_vector_ids = get_document_vector_ids(str(doc_uuid))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not read old vectors: {e}")
 
     chroma_ids_written: list[str] = []
 
     try:
-        content_type = _guess_content_type(doc.original_filename)
-        chunks = chunk_document(file_path, content_type)
-        texts = [c["text"] for c in chunks]
-        embeddings = await embed_texts(texts)
-
+        await db.execute(delete(Chunk).where(Chunk.document_id == doc_uuid))
         chroma_ids = [str(uuid.uuid4()) for _ in chunks]
         add_to_chroma(
             ids=chroma_ids,
             embeddings=embeddings,
             documents=texts,
             metadatas=[
-                {"document_id": str(doc.id), "chunk_index": i, "filename": doc.original_filename}
+                {
+                    "document_id": str(doc.id),
+                    "chunk_index": i,
+                    "filename": doc.original_filename,
+                    "category": doc.category,
+                }
                 for i in range(len(chunks))
             ],
         )
@@ -279,6 +392,7 @@ async def reindex_document(doc_id: str, db: AsyncSession = Depends(get_db)):
         doc.status = "Indexed"
         doc.chunks_count = len(chunks)
         doc.updated_at = datetime.utcnow()
+        await db.flush()
 
     except Exception as exc:
         if chroma_ids_written:
@@ -286,9 +400,27 @@ async def reindex_document(doc_id: str, db: AsyncSession = Depends(get_db)):
                 delete_from_chroma(chroma_ids_written)
             except Exception:
                 pass
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Reindex failed: {exc}")
 
-    return _fmt_doc(doc)
+    # ── Retire the previous vectors ───────────────────────────────────────────
+    # The new index is in place; drop the superseded vectors. Failing here only
+    # leaves stale vectors behind, which the next reindex/delete will purge.
+    if old_vector_ids:
+        try:
+            delete_from_chroma(old_vector_ids)
+        except Exception as chroma_err:
+            logger.error(
+                "Could not remove %d superseded vectors for doc %s: %s",
+                len(old_vector_ids), doc_id, chroma_err,
+            )
+
+    logger.info(
+        "Re-indexed '%s': retired %d old vectors, wrote %d new chunks.",
+        doc.name, len(old_vector_ids), len(chunks),
+    )
+
+    return _fmt_doc(doc, len(chunks))
 
 
 # ── CHUNKS ────────────────────────────────────────────────────────────────────
@@ -300,16 +432,21 @@ async def get_chunks(doc_id: str, db: AsyncSession = Depends(get_db)):
         select(Chunk).where(Chunk.document_id == doc_uuid).order_by(Chunk.chunk_index)
     )
     chunks = result.scalars().all()
-    scored = get_chunks_from_chroma([c.chroma_id for c in chunks if c.chroma_id])
-    score_map = {item["id"]: item["score"] for item in scored}
+
+    # Report real embedding state per chunk: present in ChromaDB, and its
+    # dimensionality. (There is no stored similarity score — a score only
+    # exists for a chunk relative to a specific query.)
+    vectors = get_chunks_from_chroma([c.chroma_id for c in chunks if c.chroma_id])
+    dim_map = {item["id"]: item["dim"] for item in vectors}
 
     return [
         VectorChunk(
             id=str(c.id),
             chunkIndex=c.chunk_index,
-            score=score_map.get(c.chroma_id, "N/A"),
             tokens=c.tokens,
             textExcerpt=c.text[:300] + ("..." if len(c.text) > 300 else ""),
+            embedded=c.chroma_id in dim_map,
+            embeddingDim=dim_map.get(c.chroma_id),
         )
         for c in chunks
     ]
@@ -333,14 +470,22 @@ def _fmt_size(bytes_: int) -> str:
 
 
 def _find_upload(filename: str) -> str | None:
-    """Find a previously uploaded file by its original filename suffix."""
+    """
+    Find a previously uploaded file by its original filename suffix.
+    Stored names are "<uuid>_<original>", so if the same filename was uploaded
+    more than once, pick the newest copy to keep reindex deterministic.
+    """
     try:
-        for f in os.listdir(settings.UPLOAD_DIR):
-            if f.endswith(filename):
-                return os.path.join(settings.UPLOAD_DIR, f)
+        matches = [
+            os.path.join(settings.UPLOAD_DIR, f)
+            for f in os.listdir(settings.UPLOAD_DIR)
+            if f.endswith(filename)
+        ]
     except OSError:
-        pass
-    return None
+        return None
+    if not matches:
+        return None
+    return max(matches, key=os.path.getmtime)
 
 
 def _guess_content_type(filename: str) -> str:

@@ -26,8 +26,8 @@ class Settings(BaseSettings):
 
     # ── Gemini ───────────────────────────────────────────
     GEMINI_API_KEY: str = ""
-    GEMINI_GENERATION_MODEL: str = "gemini-2.5-flash-lite-preview-06-17"
-    GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
+    GEMINI_GENERATION_MODEL: str = "gemini-3.5-flash-lite"
+    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-2"
 
     # ── Groq ─────────────────────────────────────────────
     GROQ_API_KEY: str = ""
@@ -57,6 +57,11 @@ class Settings(BaseSettings):
 
     # ── CORS ─────────────────────────────────────────────
     ALLOWED_ORIGINS: str = "http://localhost:4200"
+
+    # ── TLS ──────────────────────────────────────────────
+    # Set false only behind an HTTPS-inspecting corporate proxy. See
+    # shared/ssl_config.py.
+    SSL_VERIFY: bool = True
 
     @property
     def allowed_origins_list(self) -> list[str]:

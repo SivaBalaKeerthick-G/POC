@@ -6,6 +6,7 @@ from functools import lru_cache
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from shared.config import settings
+from shared.ssl_config import google_client_args
 
 
 @lru_cache
@@ -18,6 +19,7 @@ def get_embeddings_model() -> GoogleGenerativeAIEmbeddings:
     return GoogleGenerativeAIEmbeddings(
         model=model_name,
         google_api_key=settings.GEMINI_API_KEY,
+        client_args=google_client_args(),
     )
 
 
