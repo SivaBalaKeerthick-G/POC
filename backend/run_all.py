@@ -64,9 +64,22 @@ def main():
         print("\n[!] Stopping all services...")
         for name, p in processes:
             print(f"Terminating {name}...")
-            p.terminate()
+            if sys.platform == "win32":
+                try:
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(p.pid)],
+                        capture_output=True,
+                        check=False,
+                    )
+                except Exception:
+                    p.terminate()
+            else:
+                p.terminate()
         for _, p in processes:
-            p.wait()
+            try:
+                p.wait(timeout=3)
+            except Exception:
+                pass
         print("All services stopped.")
 
 if __name__ == "__main__":

@@ -9,4 +9,7 @@ export interface ChatMessage {
   role: 'user' | 'ai';
   content: string;
   sources?: SourceChunk[];
+  queryLogId?: string;
+  userFeedback?: 'thumbs_up' | 'thumbs_down' | null;
+  isFeedbackSubmitting?: boolean;
 }

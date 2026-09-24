@@ -46,6 +46,16 @@ class DashboardMetrics(BaseModel):
     monthlyQueries: int
     groundingRate: str
     avgLatencyMs: float
+    precision: str = "N/A"
+    recall: str = "N/A"
+    f1Score: str = "N/A"
+    tp: int = 0
+    tn: int = 0
+    fp: int = 0
+    fn: int = 0
+    userFeedbackCount: int = 0
+    positiveFeedbackCount: int = 0
+    negativeFeedbackCount: int = 0
 
 
 class IndexHealth(BaseModel):

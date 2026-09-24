@@ -50,6 +50,35 @@
             <div class="ai-card-body">
               <p>{{ msg.content }}</p>
 
+              <!-- User Feedback Buttons (Thumbs Up / Down) -->
+              @if (msg.queryLogId) {
+                <div class="feedback-container">
+                  <span class="feedback-prompt">Was this answer accurate?</span>
+                  <div class="feedback-buttons">
+                    <button
+                      type="button"
+                      class="feedback-btn like"
+                      [class.active]="msg.userFeedback === 'thumbs_up'"
+                      [disabled]="msg.isFeedbackSubmitting"
+                      (click)="submitFeedback(msg, 'thumbs_up')"
+                      title="Accurate and helpful">
+                      <i class="fa-solid fa-thumbs-up"></i>
+                      <span>Helpful</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="feedback-btn dislike"
+                      [class.active]="msg.userFeedback === 'thumbs_down'"
+                      [disabled]="msg.isFeedbackSubmitting"
+                      (click)="submitFeedback(msg, 'thumbs_down')"
+                      title="Inaccurate or unhelpful">
+                      <i class="fa-solid fa-thumbs-down"></i>
+                      <span>Needs improvement</span>
+                    </button>
+                  </div>
+                </div>
+              }
+
               <!-- Source Citations Drawer — hidden for now, sources are not shown.
               @if (msg.sources && msg.sources.length > 0) {
                 <div class="sources-container">
@@ -66,7 +95,6 @@
                 </div>
               }
               -->
-
 
             </div>
           </div>

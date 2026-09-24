@@ -99,6 +99,91 @@
       </div>
     </section>
 
+    <!-- RAG Quality & Evaluation Section -->
+    <div class="metrics-section-divider">
+      <div class="eval-badge">
+        <i class="fa-solid fa-brain"></i>
+        <span>RAG Quality &amp; Evaluation (Judge &amp; Human Feedback)</span>
+      </div>
+    </div>
+
+    <section class="stats-grid quality-grid">
+      <div class="stat-card">
+        <div class="stat-icon cyan">
+          <i class="fa-solid fa-bullseye"></i>
+        </div>
+        <div class="stat-details">
+          <span class="stat-title">Precision</span>
+          <span class="stat-value">{{ precision() }}</span>
+          <span class="stat-sub">
+            @if (tp() + fp() > 0) {
+              TP: {{ tp() }} &middot; FP: {{ fp() }}
+            } @else {
+              TP / (TP + FP)
+            }
+          </span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon indigo">
+          <i class="fa-solid fa-layer-group"></i>
+        </div>
+        <div class="stat-details">
+          <span class="stat-title">Recall</span>
+          <span class="stat-value">{{ recall() }}</span>
+          <span class="stat-sub">
+            @if (tp() + fn() > 0) {
+              TP: {{ tp() }} &middot; FN: {{ fn() }}
+            } @else {
+              TP / (TP + FN)
+            }
+          </span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon emerald">
+          <i class="fa-solid fa-scale-balanced"></i>
+        </div>
+        <div class="stat-details">
+          <span class="stat-title">F1 Score</span>
+          <span class="stat-value">{{ f1Score() }}</span>
+          <span class="stat-sub">
+            @if (tp() > 0 || fp() > 0 || fn() > 0) {
+              TN: {{ tn() }} &middot; 2&middot;P&middot;R/(P+R)
+            } @else {
+              Harmonic Balance
+            }
+          </span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon rose">
+          <i class="fa-solid fa-thumbs-up"></i>
+        </div>
+        <div class="stat-details">
+          <span class="stat-title">User Feedback</span>
+          <span class="stat-value">
+            @if (userFeedbackCount() > 0) {
+              {{ (positiveFeedbackCount() / userFeedbackCount() * 100) | number:'1.0-0' }}%
+            } @else {
+              —
+            }
+          </span>
+          <span class="stat-sub">
+            @if (userFeedbackCount() > 0) {
+              <span class="positive"><i class="fa-solid fa-thumbs-up"></i> {{ positiveFeedbackCount() }}</span> &middot;
+              <span class="warning"><i class="fa-solid fa-thumbs-down"></i> {{ negativeFeedbackCount() }}</span>
+            } @else {
+              Awaiting user ratings
+            }
+          </span>
+        </div>
+      </div>
+    </section>
+
     <!-- Document Management Table Panel -->
     <section class="table-card">
       <div class="table-header">
