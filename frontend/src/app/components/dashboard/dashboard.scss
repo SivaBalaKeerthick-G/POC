@@ -151,6 +151,10 @@
     &.purple { background: rgba(147, 51, 234, 0.15); color: #c084fc; border: 1px solid rgba(147, 51, 234, 0.25); }
     &.green { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
     &.amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
+    &.cyan { background: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.25); }
+    &.indigo { background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.25); }
+    &.emerald { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
+    &.rose { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.25); }
   }
 
   .stat-details {
@@ -162,6 +166,32 @@
       display: inline-flex; align-items: center; gap: 5px;
       &.positive { color: #10b981; }
       &.warning { color: #fbbf24; }
+    }
+  }
+}
+
+.metrics-section-divider {
+  display: flex;
+  align-items: center;
+  margin-top: 0.5rem;
+  margin-bottom: -0.5rem;
+
+  .eval-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.775rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    padding: 6px 14px;
+    border-radius: 20px;
+
+    i {
+      font-size: 0.85rem;
+      color: #38bdf8;
     }
   }
 }

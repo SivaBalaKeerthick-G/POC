@@ -11,6 +11,7 @@ for p in (str(BACKEND_DIR), str(SERVICE_DIR)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
+from contextlib import asynccontextmanager
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,10 +19,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from shared.config import settings
 from shared.auth.jwt_validator import verify_token
 
+_proxy_client: httpx.AsyncClient | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _proxy_client
+    _proxy_client = httpx.AsyncClient(
+        timeout=300.0,
+        limits=httpx.Limits(max_keepalive_connections=50, max_connections=100),
+    )
+    yield
+    if _proxy_client:
+        await _proxy_client.aclose()
+
+
 app = FastAPI(
     title="CogniDoc API Gateway",
     description="Authenticated reverse proxy for all CogniDoc microservices.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -62,26 +79,26 @@ async def proxy(request: Request, path: str):
     service_url = _resolve_service(f"/api/{path}")
     target_url = f"{service_url}/api/{path}"
 
-    # Forward request (including multipart files).
+    # Forward request (including multipart files) using pooled client.
     # IMPORTANT: preserve Content-Type so multipart boundary is not lost.
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        try:
-            body = await request.body()
+    client = _proxy_client or httpx.AsyncClient(timeout=300.0)
+    try:
+        body = await request.body()
 
-            forward_headers = {
-                k: v for k, v in request.headers.items()
-                if k.lower() not in ("host", "content-length", "transfer-encoding")
-            }
+        forward_headers = {
+            k: v for k, v in request.headers.items()
+            if k.lower() not in ("host", "content-length", "transfer-encoding")
+        }
 
-            upstream = await client.request(
-                method=request.method,
-                url=target_url,
-                headers=forward_headers,
-                params=dict(request.query_params),
-                content=body,
-            )
-        except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=f"Upstream service unavailable: {service_url}")
+        upstream = await client.request(
+            method=request.method,
+            url=target_url,
+            headers=forward_headers,
+            params=dict(request.query_params),
+            content=body,
+        )
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail=f"Upstream service unavailable: {service_url}")
 
     # Exclude hop-by-hop & compression headers so Starlette formats the response correctly
     safe_response_headers = {

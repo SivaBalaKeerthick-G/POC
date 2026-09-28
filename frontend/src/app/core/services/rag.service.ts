@@ -25,6 +25,16 @@ export class RagService {
     );
   }
 
+  submitFeedback(queryLogId: string, feedback: 'thumbs_up' | 'thumbs_down'): Observable<any> {
+    return this.http.post(`${this.apiUrl}/api/chat/feedback`, {
+      query_log_id: queryLogId,
+      feedback,
+    }).pipe(
+      timeout(15000),
+      catchError(this.handleError)
+    );
+  }
+
   private handleError(error: any) {
     console.error('RAG API Error:', error);
     if (error.name === 'TimeoutError') {

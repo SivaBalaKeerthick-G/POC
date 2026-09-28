@@ -21,6 +21,13 @@ class ChatMessage(BaseModel):
     role: str = "ai"
     content: str
     sources: list[SourceChunk] = []
+    queryLogId: str | None = None
+    userFeedback: str | None = None
+
+
+class FeedbackRequest(BaseModel):
+    query_log_id: str
+    feedback: str  # "thumbs_up" | "thumbs_down"
 
 
 # ── Judge Models ─────────────────────────────────────────────────────────────

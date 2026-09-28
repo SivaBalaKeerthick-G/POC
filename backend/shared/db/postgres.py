@@ -7,7 +7,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Column, DateTime, Enum, Float, ForeignKey,
-    Integer, JSON, String, Text
+    Integer, JSON, String, Text, text
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -86,12 +86,17 @@ class QueryLog(Base):
     judge_completeness = Column(Float, nullable=True)
     judge_verdict = Column(String(20), nullable=True)  # PASS | FAIL
     judge_reasoning = Column(Text, nullable=True)
+    user_feedback = Column(String(20), nullable=True)  # thumbs_up | thumbs_down
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 # ── Table Creation ────────────────────────────────────────────────────────────
 
 async def create_tables():
-    """Create all tables on startup if they don't exist."""
+    """Create all tables on startup if they don't exist, and ensure schema migrations."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS user_feedback VARCHAR(20);"))
+        except Exception:
+            pass

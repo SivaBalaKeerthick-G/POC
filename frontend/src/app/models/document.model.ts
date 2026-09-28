@@ -27,6 +27,16 @@ export interface DashboardMetrics {
   monthlyQueries: number;
   groundingRate: string;
   avgLatencyMs: number;
+  precision: string;
+  recall: string;
+  f1Score: string;
+  tp?: number;
+  tn?: number;
+  fp?: number;
+  fn?: number;
+  userFeedbackCount?: number;
+  positiveFeedbackCount?: number;
+  negativeFeedbackCount?: number;
 }
 
 /** PostgreSQL ↔ ChromaDB reconciliation (GET /api/documents/index-health). */

@@ -42,6 +42,8 @@ export class Home {
             role: 'ai',
             content: response.content,
             sources: this.uniqueSources(response.sources),
+            queryLogId: response.queryLogId,
+            userFeedback: response.userFeedback ?? null,
           },
         ]);
         this.isLoading.set(false);
@@ -50,6 +52,26 @@ export class Home {
         console.error('RAG query failed:', err);
         this.errorMessage.set('Failed to get a response. Please try again.');
         this.isLoading.set(false);
+      },
+    });
+  }
+
+  submitFeedback(msg: ChatMessage, feedback: 'thumbs_up' | 'thumbs_down'): void {
+    if (!msg.queryLogId || msg.userFeedback === feedback || msg.isFeedbackSubmitting) return;
+
+    msg.isFeedbackSubmitting = true;
+    this.messages.update((msgs) => [...msgs]);
+
+    this.ragService.submitFeedback(msg.queryLogId, feedback).subscribe({
+      next: () => {
+        msg.userFeedback = feedback;
+        msg.isFeedbackSubmitting = false;
+        this.messages.update((msgs) => [...msgs]);
+      },
+      error: (err) => {
+        console.error('Failed to submit feedback:', err);
+        msg.isFeedbackSubmitting = false;
+        this.messages.update((msgs) => [...msgs]);
       },
     });
   }

@@ -1,7 +1,12 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DocumentFile, VectorChunk } from '../../models/document.model';
+import {
+  DashboardMetrics,
+  DocumentFile,
+  IndexHealth,
+  VectorChunk,
+} from '../../models/document.model';
 import { DocumentService } from '../../core/services/document.service';
 
 interface CategoryOption {
@@ -59,6 +64,16 @@ export class Dashboard implements OnInit {
   monthlyQueries = signal(0);
   groundingRate = signal('—');
   avgLatencyMs = signal(0);
+  precision = signal('—');
+  recall = signal('—');
+  f1Score = signal('—');
+  tp = signal(0);
+  tn = signal(0);
+  fp = signal(0);
+  fn = signal(0);
+  userFeedbackCount = signal(0);
+  positiveFeedbackCount = signal(0);
+  negativeFeedbackCount = signal(0);
   // PostgreSQL ↔ ChromaDB reconciliation
   storeVectors = signal(0);
   storeChunkRows = signal(0);
@@ -72,9 +87,25 @@ export class Dashboard implements OnInit {
   private documentService = inject(DocumentService);
 
   ngOnInit(): void {
-    this.loadDocuments();
-    this.loadMetrics();
-    this.loadIndexHealth();
+    // 1. Instant hydration from persistent SWR cache (0ms delay, zero spinners)
+    const cachedDocs = this.documentService.cachedDocuments();
+    if (cachedDocs.length > 0) {
+      this.documents.set(cachedDocs);
+      this.isLoadingDocs.set(false);
+    }
+    const cachedMetrics = this.documentService.cachedMetrics();
+    if (cachedMetrics) {
+      this.applyMetrics(cachedMetrics);
+    }
+    const cachedHealth = this.documentService.cachedIndexHealth();
+    if (cachedHealth) {
+      this.applyIndexHealth(cachedHealth);
+    }
+
+    // 2. Silent background revalidation (or first-time fetch)
+    this.loadDocuments(false);
+    this.loadMetrics(false);
+    this.loadIndexHealth(false);
   }
 
   readonly filteredDocuments = computed(() => {
@@ -118,40 +149,58 @@ export class Dashboard implements OnInit {
 
   // ── Loading / refreshing ───────────────────────────────────────────────────
 
-  private loadDocuments(): void {
-    this.isLoadingDocs.set(true);
-    this.documentService.getDocuments().subscribe({
+  private applyMetrics(m: DashboardMetrics): void {
+    this.monthlyQueries.set(m.monthlyQueries);
+    this.groundingRate.set(m.groundingRate);
+    this.avgLatencyMs.set(m.avgLatencyMs / 10);
+    this.precision.set(m.precision || '—');
+    this.recall.set(m.recall || '—');
+    this.f1Score.set(m.f1Score || '—');
+    this.tp.set(m.tp || 0);
+    this.tn.set(m.tn || 0);
+    this.fp.set(m.fp || 0);
+    this.fn.set(m.fn || 0);
+    this.userFeedbackCount.set(m.userFeedbackCount || 0);
+    this.positiveFeedbackCount.set(m.positiveFeedbackCount || 0);
+    this.negativeFeedbackCount.set(m.negativeFeedbackCount || 0);
+  }
+
+  private applyIndexHealth(h: IndexHealth): void {
+    this.storeChunkRows.set(h.chunkRows);
+    this.storeVectors.set(h.vectors);
+    this.isStoreInSync.set(h.inSync);
+    this.hasIndexHealth.set(true);
+  }
+
+  private loadDocuments(force = false): void {
+    if (this.documents().length === 0) {
+      this.isLoadingDocs.set(true);
+    }
+    this.documentService.getDocuments(force).subscribe({
       next: (docs) => {
         this.documents.set(docs);
         this.isLoadingDocs.set(false);
       },
       error: (err) => {
         console.error('Failed to load documents:', err);
-        this.showNotification(`Could not load documents: ${err.message ?? 'unknown error'}`);
+        if (this.documents().length === 0) {
+          this.showNotification(`Could not load documents: ${err.message ?? 'unknown error'}`);
+        }
         this.isLoadingDocs.set(false);
       },
     });
   }
 
-  private loadMetrics(): void {
-    this.documentService.getMetrics().subscribe({
-      next: (m) => {
-        this.monthlyQueries.set(m.monthlyQueries);
-        this.groundingRate.set(m.groundingRate);
-        this.avgLatencyMs.set(m.avgLatencyMs/10);
-      },
+  private loadMetrics(force = false): void {
+    this.documentService.getMetrics(force).subscribe({
+      next: (m) => this.applyMetrics(m),
       error: (err) => console.error('Failed to load metrics:', err),
     });
   }
 
-  private loadIndexHealth(): void {
-    this.documentService.getIndexHealth().subscribe({
-      next: (h) => {
-        this.storeChunkRows.set(h.chunkRows);
-        this.storeVectors.set(h.vectors);
-        this.isStoreInSync.set(h.inSync);
-        this.hasIndexHealth.set(true);
-      },
+  private loadIndexHealth(force = false): void {
+    this.documentService.getIndexHealth(force).subscribe({
+      next: (h) => this.applyIndexHealth(h),
       error: (err) => {
         console.error('Failed to load index health:', err);
         this.hasIndexHealth.set(false);
@@ -164,9 +213,9 @@ export class Dashboard implements OnInit {
    * Called after every mutation (upload / edit / re-index / delete) so the stat
    * cards, the table and the vector store never drift apart.
    */
-  refreshDashboard(): void {
+  refreshDashboard(force = true): void {
     this.isRefreshing.set(true);
-    this.documentService.getDocuments().subscribe({
+    this.documentService.getDocuments(force).subscribe({
       next: (docs) => {
         this.documents.set(docs);
         this.isRefreshing.set(false);
@@ -177,8 +226,8 @@ export class Dashboard implements OnInit {
         this.isRefreshing.set(false);
       },
     });
-    this.loadMetrics();
-    this.loadIndexHealth();
+    this.loadMetrics(force);
+    this.loadIndexHealth(force);
   }
 
   /** Keeps the open chunk drawer pointed at the refreshed document record. */
