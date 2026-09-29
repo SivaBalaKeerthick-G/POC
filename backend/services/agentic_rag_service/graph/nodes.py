@@ -477,6 +477,10 @@ def route_after_grading(state: AgenticRAGState) -> str:
     """
     Conditional edge. 'retry' re-enters retrieve at most once, because only the
     first grading failure can set should_retry — so the graph cannot cycle.
+
+    The grader increments retry_count before it requests the retry. Therefore a
+    count equal to MAX_RETRIES still represents the one retry being requested;
+    after that pass the grader clears should_retry and routes to generation.
     """
     if state.get("should_retry") and state.get("retry_count", 0) <= MAX_RETRIES:
         return "retry"
